@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cook
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.database import Database
 from pymongo import MongoClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from models import *
 
@@ -31,59 +31,108 @@ app.add_middleware(
 )
 
 
-class Connections:
-    websockets: dict[int, list[WebSocket]] = {}
+class GameManager:
+    '''Менеджер соединений для игры'''
+
+    # Ну как бы вне класса managed_games не должен меняться, но мне кажется, что
+    # делать обёртку и проперти, копирующий внутренний словарь это слишком дорогостояще.
+    # Думаю и так понятно, что менять его не стоит
+    managed_games: dict[int, 'GameManager'] = {}
+    '''
+    Словарь всех созданных менеджеров соединений через метод `GameManager.create`,
+    где идентификатор игры - это ключ
+    '''
+
+    def __init__(self, game_id: int) -> None:
+        '''Менеджер соединений, связанных с игрой с идентификатором `game_id`'''
+        self.game_id = game_id
+        self.websockets: dict[str, WebSocket] = {}
+
+        GameManager.managed_games
 
     @staticmethod
-    def add(game_id: Hashable, websocket: WebSocket, timeout=10) -> None:
-        if game_id in Connections.websockets:
-            Connections.websockets[game_id].append(websocket)
-        else:
-            Connections.websockets[game_id] = [websocket]
+    def create(game_id: int) -> 'GameManager':
+        '''
+        Создаёт менеджера соединений для игры с идентификатором `game_id` и сохраняет доступ к
+        нему в `GameManager.managed_games`
+        '''
+        if game_id in GameManager.managed_games:
+            raise AttributeError(f'There is already a game manager for game with {game_id} id')
 
-        asyncio.create_task(Connections._handle_disconnect(websocket))
+        manager = GameManager(game_id)
+        GameManager.managed_games[game_id] = manager
+        return manager
 
-    @staticmethod
-    async def _handle_disconnect(websocket: WebSocket):
+    def add(self, websocket: WebSocket, client_id: str) -> None:
+        '''Добавляет или заменяет соединение клиента с идентификатором `client_id`'''
+        if client_id in self.websockets:
+            reason = "Client made a new websocket connection"
+            asyncio.create_task(self.websockets[client_id].close(reason=reason))
+
+        self.websockets[client_id] = websocket
+        asyncio.create_task(self._handle_socket(client_id))
+
+    async def close_all(self, reason: str | None = None):
+        '''Закрывает все соединения Менеджера'''
+        coroutines = []
+        for client_id in self.websockets:
+            coroutines.append(self.websockets[client_id].close(reason=reason))
+        await asyncio.gather(*coroutines)
+        self.websockets.clear()
+
+    async def send(self, event: GameEvent) -> None:
+        '''
+        Отправляет игровое событие, инициируемое сервером, всем клиентам-игрокам, подключенным
+        к этой игре
+        '''
+        coroutines = []
+        for client_id in self.websockets:
+            coroutines.append(self.websockets[client_id].send_json(event.json()))
+        asyncio.gather(*coroutines)
+
+    async def _handle_socket(self, client_id: str):
+        '''
+        Обрабатывает соединение с вебсокетом, привязанного к `client_id`
+        на момент вызова метода.
+        '''
         while True:
             try:
-                await websocket.receive_text()
+                json: dict = await self.websockets[client_id].receive_json()
+                event: PlayerEvent = PlayerEvent.from_dict(json)
+
+                game_document = db['games'].find_one({'id': self.game_id})
+                game = Game.construct(game_document)
+                game.apply(event)
+
+
+                for key in self.websockets:
+                    if client_id != key:
+                        asyncio.create_task(self.websockets[key].send_json(event.dict()))
+
+            except AttributeError | ValidationError as e:
+                await self.websockets[client_id].send_json(
+                    SocketError(message=str(e)).dict()
+                )
             except WebSocketDisconnect:
-                await Connections.close(websocket)
-
-
-    @staticmethod
-    async def close(websocket: WebSocket, reason: str | None = None) -> None:
-        for game_id in Connections.websockets:
-            if websocket in Connections.websockets[game_id]:
-                Connections.websockets[game_id].remove(websocket)
+                self.websockets[client_id] = None
                 break
-        await websocket.close(reason=reason)
-
-    @staticmethod
-    async def close_game(game_id: Hashable, reason: str | None = None) -> None:
-        # Tell all the websockets connected to game to close and then await them to
-        # end the connection
-        coroutines = []
-        for websocket in Connections.websockets[game_id]:
-            coroutines.append(websocket.close(reason=reason))
-        await asyncio.gather(*coroutines)
-
-        Connections.websockets[game_id] = None
-
-    @staticmethod
-    async def send(game_id: Hashable, data) -> None:
-        coroutines = []
-        for websocket in Connections.websockets[game_id]:
-            coroutines.append(websocket.send_json(data))
-        asyncio.gather(*coroutines)
 
 
 @app.websocket('/{game_id}')
-def connect(game_id: int, websocket: WebSocket):
-    print('testing!')
-    Connections.add(game_id, websocket)
-    Connections.send(game_id, 'hiiii')
+def connect(game_id: int, websocket: WebSocket, client_id: str):
+    '''
+    Подключает вебсокет от игрока к серверу.
+
+    @game_id: Идентификатор игры, к которой подключается клиент
+    @client_id: Уникальный идентификатор, определяющий клиента. При разрыве предыдущего
+    вебсокета и создании нового с тем же `client_id`, сервер понимает, что новый вебсокет
+    принадлежит тому же клиенту
+    '''
+    if game_id in GameManager.managed_games:
+        manager = GameManager.managed_games[game_id]
+    else:
+        manager = GameManager.create(game_id)
+    manager.add(websocket, client_id)
 
 
 @app.post('/{game_id}/start')
