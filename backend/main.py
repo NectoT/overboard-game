@@ -184,3 +184,21 @@ def game_info(game_id: int) -> GameInfo:
     game: Game = Game(**document)
 
     return game
+
+
+@app.get('/{game_id}')
+def game(game_id: int, client_id: Annotated[str | None, Cookie()] = None) -> Game:
+    '''
+    Возвращает информацию об игре, доступную клиенту с идентификатором `client_id`.
+    Если `client_id` не передаётся, то возвращается информация, доступная наблюдателям.
+    '''
+    game_document = db['games'].find_one({'id': game_id})
+    if game_document is None:
+        raise HTTPException(422, f'Cannot find a game with id {game_id}')
+    game = Game.construct(**game_document)
+    if client_id is not None and client_id in game.players:
+        game = Game.with_player_view(game, client_id)
+    else:
+        game = Game.with_spectator_view(game)
+
+    return game
