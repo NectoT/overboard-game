@@ -39,7 +39,7 @@
 <h2 class="annotation-large">Или</h2>
 
 <h1 class="title-small">Подключиться к игре:</h1>
-<form action="?/connect" method="POST" use:enhance={() => {}} id="connect-form">
+<form action="?/connect" method="post" use:enhance id="connect-form">
     <span id='connect-flex'>
         <!--
             Я предполагаю, что игровые id всегда будут одинаковой длины, поэтому использую

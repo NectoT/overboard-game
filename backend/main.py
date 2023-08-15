@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
 import asyncio
-from typing import Hashable
+from typing import Annotated
 import random
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.database import Database
 from pymongo import MongoClient
@@ -92,15 +92,20 @@ def start_game(game_id: int):
 
 
 @app.post('/create')
-def create_game(game_id: int):
+def create_game(
+    game_id: Annotated[int, Query(description="Идентификатор для новой игры")],
+    client_id: Annotated[str, Cookie(description="Идентификатор клиента-игрока, создающего игру")]
+):
     '''
-    Создаёт новую игру с указанным id.
+    Создаёт новую игру с указанным game_id.
     `game_id` должен быть уникальным, то есть не использоваться в других играх.
+
+    \f
+    @client_id: Идентификатор клиента-игрока, создающего игру.
     '''
     if db['games'].find_one({'id': game_id}) is not None:
         raise HTTPException(400, detail=f"Game with {game_id} id already exists")
-
-    db['games'].insert_one(Game(id=game_id))
+    db['games'].insert_one(Game(id=game_id).dict())
 
 
 class UniqueId(BaseModel):
