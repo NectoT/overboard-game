@@ -168,8 +168,9 @@ def _get_property_type(property: dict) -> str:
     if property['type'] == 'array':
         return f'Array<{_get_property_type(property["items"])}>'
     if property['type'] == 'object':
-        # Скорее всего dict. В схеме почему-то нет типа ключа :(
-        return f'Map<any, {_get_property_type(property["additionalProperties"])}>'
+        # Скорее всего dict. 
+        # В схеме почему-то нет типа ключа :(
+        return '{ ' + f'[key: symbol]: {_get_property_type(property["additionalProperties"])}' + ' }'
     if property['type'] in type_conversion:
         return type_conversion[property['type']]
     return property['type']
@@ -249,9 +250,6 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(output)
 
-
-class Test(BaseModel):
-    a: dict[str, dict[int, int]]
 
 if __name__ == '__main__':
     args = sys.argv

@@ -39,12 +39,8 @@ export enum GameViewpoint {
 export type Game = {
 	id: number;
 	started: boolean;
-	players: Map<any, Player>;
+	players: { [key: symbol]: Player };
 	viewpoint?: GameViewpoint;
 	viewpoint_client_id?: String;
-};
-
-export type Test = {
-	a: Map<any, Map<any, number>>;
 };
 
