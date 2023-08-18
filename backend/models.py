@@ -15,6 +15,14 @@ class Player(BaseModel):
 
 class GameEvent(BaseModel):
     type: str
+    '''
+    Тип события, совпадает с названием класса.
+    При создании объекта модели устанавливается автоматически.
+    '''
+
+    def __init__(self, **data):
+        data['type'] = type(self).__name__
+        super().__init__(**data)
 
     def as_mongo_update(self) -> dict:
         '''
@@ -25,7 +33,6 @@ class GameEvent(BaseModel):
 
 
 class HostChange(GameEvent):
-    type = "HostChange"
     new_host: str
 
     def as_mongo_update(self) -> dict:
@@ -63,24 +70,22 @@ class PlayerEvent(GameEvent):
 
             return event
         except KeyError:
-
             # Здесь можно вручную указывать классы, которые мы ищем. Так можно создавать объекты
             # классов, которые создаются в других модулях
+            pass
+        raise AttributeError(
+            'Type not provided or given type cannot be converted to any event class'
+        )
 
-            raise AttributeError(
-                'Type not provided or given type cannot be converted to any event class'
-            )
 
 
 class PlayerConnect(PlayerEvent):
-    type = 'PlayerConnect'
 
     def as_mongo_update(self) -> dict:
         return {'$set': {f'players.{self.client_id}': {}}}
 
 
 class NameChange(PlayerEvent):
-    type = "NameChange"
     new_name: str
 
     def as_mongo_update(self) -> dict:
