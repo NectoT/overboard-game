@@ -112,8 +112,19 @@ class GameManager:
                 event: PlayerEvent = PlayerEvent.from_dict(json)
 
                 game_document = db['games'].find_one({'id': self.game_id})
-                game = Game.construct(game_document)
-                game.apply(event)
+                game: Game = Game.construct(**game_document)
+
+                if isinstance(event, PlayerConnect) and event.client_id in game.players:
+                    continue
+                else:
+                    print('updating!')
+                    db['games'].update_one({'id': self.game_id}, event.as_mongo_update())
+
+                if (isinstance(event, PlayerConnect) and game.host is None):
+                    # Первый подключившийся к бесхозной игре становится её хостом
+                    host_event = HostChange(new_host=event.client_id)
+                    db['games'].update_one({'id': self.game_id}, host_event.as_mongo_update())
+                    await self.send(host_event)
 
 
                 coroutines = []

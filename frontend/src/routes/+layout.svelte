@@ -1,17 +1,38 @@
 
-<header>
-    <a href="/" id="home-link">
-        <img src="favicon.png" alt="Вернуться на главную страницу" width="100" height="100">
-    </a>
-    <slot name="header"/>
-</header>
+<script>
+    let darkMode = false;
+    $: color = darkMode ? "#262828" : "white"
+</script>
 
-<slot/>
+<div id="layout-wrapper">
+    <header>
+        <a href="/" id="home-link">
+            <img src="favicon.png" alt="Вернуться на главную страницу" width="100" height="100">
+        </a>
+        <slot name="header"/>
+    </header>
+
+    <div id="main" style:background-color="{color}">
+        <slot/>
+    </div>
+</div>
 
 <style>
     :global(body) {
         --font-family: Arial, Helvetica, sans-serif;
         margin: 0%;
+    }
+
+    #layout-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    #main {
+        position: relative;
+        flex-grow: 1;
+        background-color: rgb(46, 50, 50);
     }
 
     header {

@@ -10,11 +10,26 @@ class GameInfo(BaseModel):
 
 
 class Player(BaseModel):
-    pass
+    name: str = None
 
 
 class GameEvent(BaseModel):
     type: str
+
+    def as_mongo_update(self) -> dict:
+        '''
+        Возвращает словарь с update operators, которые используются для
+        обновления документа игры в MongoDB
+        '''
+        raise NotImplementedError
+
+
+class HostChange(GameEvent):
+    type = "HostChange"
+    new_host: str
+
+    def as_mongo_update(self) -> dict:
+        return {'$set': {'host': self.new_host}}
 
 
 class PlayerEvent(GameEvent):
@@ -60,6 +75,17 @@ class PlayerEvent(GameEvent):
 class PlayerConnect(PlayerEvent):
     type = 'PlayerConnect'
 
+    def as_mongo_update(self) -> dict:
+        return {'$set': {f'players.{self.client_id}': {}}}
+
+
+class NameChange(PlayerEvent):
+    type = "NameChange"
+    new_name: str
+
+    def as_mongo_update(self) -> dict:
+        return {'$set': {f'players.{self.client_id}.name': self.new_name}}
+
 
 class SocketError(BaseModel):
     message: str
@@ -81,6 +107,8 @@ class Game(BaseModel):
     id: int
     started: bool = False
     players: dict[str, Player] = {}
+    host: str = None
+    '''Идентификатор игрока, который является хостом'''
 
     viewpoint: GameViewpoint = None
     '''
@@ -106,7 +134,7 @@ class Game(BaseModel):
         if isinstance(event, PlayerConnect):
             if event.client_id in self.players:
                 raise ValueError("A player with this client_id already exists in this game.")
-            self.players.append(Player(client_id=event.client_id))
+            self.players[event.client_id] = Player()
 
     @staticmethod
     def with_player_view(game: 'Game | dict', client_id: str) -> 'Game':
@@ -157,7 +185,7 @@ class Game(BaseModel):
 
 
 def _get_property_type(property: dict) -> str:
-    type_conversion = {'integer': 'number', 'string': 'String', 'object': 'Object'}
+    type_conversion = {'integer': 'number'}
 
     if 'anyOf' in property:
         return ' | '.join([_get_property_type(prop) for prop in property['anyOf']])
@@ -168,9 +196,9 @@ def _get_property_type(property: dict) -> str:
     if property['type'] == 'array':
         return f'Array<{_get_property_type(property["items"])}>'
     if property['type'] == 'object':
-        # Скорее всего dict. 
+        # Скорее всего dict.
         # В схеме почему-то нет типа ключа :(
-        return '{ ' + f'[key: symbol]: {_get_property_type(property["additionalProperties"])}' + ' }'
+        return '{ ' + f'[key: string]: {_get_property_type(property["additionalProperties"])}' + ' }'
     if property['type'] in type_conversion:
         return type_conversion[property['type']]
     return property['type']
@@ -253,7 +281,6 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
 
 if __name__ == '__main__':
     args = sys.argv
-    model_to_typescript(Test)
     if len(args) == 1:
         print('Генерирует ts файл с типами данных, соответствующими моделям в models.py')
     elif len(args) == 2:
