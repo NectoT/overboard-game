@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
-from typing import Annotated
+from typing import Annotated, Awaitable
 import random
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie, Query
@@ -52,8 +52,6 @@ class GameManager:
         self.game_id = game_id
         self.websockets: dict[str, WebSocket] = {}
 
-        GameManager.managed_games
-
     @staticmethod
     def create(game_id: int) -> 'GameManager':
         '''
@@ -67,14 +65,23 @@ class GameManager:
         GameManager.managed_games[game_id] = manager
         return manager
 
-    def add(self, websocket: WebSocket, client_id: str) -> None:
-        '''Добавляет или заменяет соединение клиента с идентификатором `client_id`'''
+
+    async def add(self, websocket: WebSocket, client_id: str) -> Awaitable[None]:
+        '''
+        Устанавливает по переданному вебсокету соединение с клиентом с идентификатором `client_id.
+        Разрывает предыдущее соединение, если оно было.
+
+        :returns: Awaitable, который завершается при отключении соединения.
+        #### Если не ждать этот метод, соединение сразу прервётся
+        '''
+        await websocket.accept()
         if client_id in self.websockets:
             reason = "Client made a new websocket connection"
-            asyncio.create_task(self.websockets[client_id].close(reason=reason))
+            websocket = self.websockets[client_id]
+            asyncio.create_task(websocket.close(reason=reason))
 
         self.websockets[client_id] = websocket
-        asyncio.create_task(self._handle_socket(client_id))
+        await self._handle_socket(client_id)
 
     async def close_all(self, reason: str | None = None):
         '''Закрывает все соединения Менеджера'''
@@ -91,8 +98,8 @@ class GameManager:
         '''
         coroutines = []
         for client_id in self.websockets:
-            coroutines.append(self.websockets[client_id].send_json(event.json()))
-        asyncio.gather(*coroutines)
+            coroutines.append(self.websockets[client_id].send_json(event.dict()))
+        await asyncio.gather(*coroutines)
 
     async def _handle_socket(self, client_id: str):
         '''
@@ -109,21 +116,25 @@ class GameManager:
                 game.apply(event)
 
 
+                coroutines = []
                 for key in self.websockets:
                     if client_id != key:
-                        asyncio.create_task(self.websockets[key].send_json(event.dict()))
+                        coroutines.append(
+                            self.websockets[key].send_json(event.dict())
+                        )
+                await asyncio.gather(*coroutines)
 
-            except AttributeError | ValidationError as e:
+            except (AttributeError, ValidationError) as e:
                 await self.websockets[client_id].send_json(
                     SocketError(message=str(e)).dict()
                 )
             except WebSocketDisconnect:
-                self.websockets[client_id] = None
+                del self.websockets[client_id]
                 break
 
 
 @app.websocket('/{game_id}')
-def connect(game_id: int, websocket: WebSocket, client_id: str):
+async def connect(game_id: int, websocket: WebSocket, client_id: Annotated[str, Query()]):
     '''
     Подключает вебсокет от игрока к серверу.
 
@@ -136,7 +147,7 @@ def connect(game_id: int, websocket: WebSocket, client_id: str):
         manager = GameManager.managed_games[game_id]
     else:
         manager = GameManager.create(game_id)
-    manager.add(websocket, client_id)
+    await manager.add(websocket, client_id)
 
 
 @app.post('/{game_id}/start')
