@@ -43,13 +43,20 @@
         }
     }
 
-    function handleFocus(event: FocusEvent) {
+    function finishEdit() {
         editMode = false;
 
         if (name.trim() == "") {
             name = startName;
         } else {
             dispatch('nameChange', {newName: name});
+        }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            finishEdit();
         }
     }
 </script>
@@ -61,9 +68,13 @@
             <span
                 class="name"
                 contenteditable="true"
+                role="textbox"
+                spellcheck="false"
+                tabindex="0"
                 bind:innerText={name}
                 bind:this={nameInput}
-                on:focusout={handleFocus}
+                on:focusout={finishEdit}
+                on:keydown={handleKeyDown}
             ></span>
         {:else}
             <span class="name">{name}</span>
