@@ -1,5 +1,5 @@
 import type { PageServerLoad, Actions } from './$types';
-import { BACKEND_URL } from '$lib/server/constants';
+import { BACKEND_URL } from '$lib/constants';
 import { ActionFailure, fail, redirect } from '@sveltejs/kit';
 
 type FetchError = {

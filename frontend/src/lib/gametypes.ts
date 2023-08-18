@@ -4,25 +4,37 @@ export type GameInfo = {
 };
 
 export type Player = {
+	name?: string;
 };
 
 export type GameEvent = {
-	type: String;
+	type: string;
+};
+
+export type HostChange = {
+	type: string;
+	new_host: string;
 };
 
 /** Событие, инициируемое игроком. */
 export type PlayerEvent = {
-	type: String;
-	client_id: String;
+	type: string;
+	client_id: string;
 };
 
 export type PlayerConnect = {
-	type: String;
-	client_id: String;
+	type: string;
+	client_id: string;
+};
+
+export type NameChange = {
+	type: string;
+	client_id: string;
+	new_name: string;
 };
 
 export type SocketError = {
-	message: String;
+	message: string;
 };
 
 export enum GameViewpoint {
@@ -39,8 +51,9 @@ export enum GameViewpoint {
 export type Game = {
 	id: number;
 	started: boolean;
-	players: { [key: symbol]: Player };
+	players: { [key: string]: Player };
+	host?: string;
 	viewpoint?: GameViewpoint;
-	viewpoint_client_id?: String;
+	viewpoint_client_id?: string;
 };
 

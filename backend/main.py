@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     db = MongoClient(DATABASE_URL)['overboard']
 
     # На время разработки это актуально, в рабочем коде этого явно быть не должно
-    generate_ts_models("C:/Users/nectot/Desktop/overboard/frontend/src/lib/server/gametypes.ts")
+    generate_ts_models("C:/Users/nectot/Desktop/overboard/frontend/src/lib/gametypes.ts")
 
     yield
 
