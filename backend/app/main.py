@@ -9,7 +9,7 @@ from pymongo.database import Database
 from pymongo import MongoClient
 from pydantic import BaseModel, ValidationError
 
-from models import *
+from .models import *
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
