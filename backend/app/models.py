@@ -55,6 +55,62 @@ class GameEvent(BaseModel):
         '''
         raise NotImplementedError
 
+    @classmethod
+    def as_ts_class(cls, export=True) -> str:
+        '''
+        Конвертирует модель в typescript класс с простым конструктором и дефолтными значениями
+
+        :returns: Строку с typescript классом
+        '''
+
+        # Я не смог сделать универсальный конвертатор модели в класс, потому что там беда с
+        # дефолтными значениями. Тут же просто нужно заранее задавать type и делать дефолтным
+        # targets
+
+        schema: dict = cls.schema()
+        export_str = 'export ' if export else ''
+        doc = '' if (cls.__doc__ is None) else f'/** {(cls.__doc__)} */\n'
+        output = doc + export_str + f'class {schema["title"]} {{\n'
+
+        class_body = ''
+        constructor_head = '\tconstructor('
+        constructor_body = ''
+
+        # Отдельно, потому что необязательные аргументы обязаны быть в конце
+        constructor_head_end = ''
+
+        properties: dict = schema['properties']
+        for name in properties:
+            property = properties[name]
+
+            if name == 'type':
+                class_body += f"\t{name} = '{cls.__name__}';\n"
+                continue  # Не добавляем type в конструктор
+
+            is_required = not cls.__fields__[name].allow_none
+            required_char = '' if is_required else '?'
+            property_type = _get_property_type(property)
+
+            class_body += f'\t{name}{required_char}: {property_type};\n'
+
+            if name == 'targets' and 'default' in property:
+                arg = f'{name} = {EventTargets.__name__}.{property["default"]}, '
+            else:
+                arg = f'{name}{required_char}: {property_type}, '
+
+            if is_required and name != 'targets':
+                constructor_head += arg
+            else:
+                constructor_head_end += arg
+            constructor_body += f'\t\tthis.{name} = {name};\n'
+
+        constructor_head += constructor_head_end + ') {\n'
+        constructor = constructor_head + constructor_body + '\t}\n'
+
+        output += class_body + constructor
+        output += '};\n'
+        return output
+
 
 class HostChange(GameEvent):
     new_host: str
@@ -233,7 +289,8 @@ def _get_property_type(property: dict) -> str:
     return property['type']
 
 
-def model_to_typescript(model: type[BaseModel], export=True) -> str:
+def model_to_ts_type(model: type[BaseModel], export=True) -> str:
+    '''Конвертирует модель в typescript type'''
     schema: dict = model.schema()
     export_str = 'export ' if export else ''
     doc = '' if (model.__doc__ is None) else f'/** {(model.__doc__)} */\n'
@@ -249,15 +306,20 @@ def model_to_typescript(model: type[BaseModel], export=True) -> str:
 
 
 def generate_ts_models(file_path: str, excluded_models: list[type]=[],
-                       included_models: list[type]=[], include_child_classes=False, export=True):
+                       included_models: list[type]=[], include_child_classes=False,
+                       exlude_child_classes = False, export=True):
     '''
     Создаёт TypeScript файл с типами данных, соответствующими моделям в models.py.
 
     Поддерживает enum как тип поля в модели.
 
+    Если у модели прописан метод `as_ts_class` или 'as_ts_type`, для транспиляции используется
+    этот метод
+
     @excluded_models: Модели, которые игнорируются и не записываются в файл.
     @included_models: Модели, которые записываются в файл. Если передаётся пустой список, в файл записываются все модели, кроме тех, которые переданы в excluded_models
-    @include_child_classes: Если True, то производные классы тех моделей, которые включены в `included_models`, так же записываются в файл,
+    @include_child_classes: Если True, то производные классы тех моделей, которые включены в `included_models`, так же записываются в файл
+    @exlude_child_classes: Если True, то производные классы тех моделей, которые включены в `excluded_models`, так же игнорируются
     @export: Если True, все типы экспортируются
     '''
     output = ''
@@ -274,13 +336,19 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
             continue
 
         is_included = len(included_models) == 0 or _dict_[key] in included_models
-        if is_model and include_child_classes:
+        if include_child_classes and len(included_models) > 0:
             for included_model in included_models:
                 is_included = is_included or included_model in _dict_[key].mro()
         if not is_included:
             continue
 
-        if _dict_[key] in excluded_models:
+        is_excluded = _dict_[key] in excluded_models
+        if exlude_child_classes and len(excluded_models) > 0:
+            for excluded_model in excluded_models:
+                if excluded_model in _dict_[key].mro():
+                    is_excluded = True
+                    break
+        if is_excluded:
             continue
 
         # Ищем потенциальные enums, которые используются в модели
@@ -302,7 +370,12 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
                     output += ' | '.join(map(str, definition['enum'])) + ';\n\n'
 
         # транспилируем саму модель
-        output += model_to_typescript(_dict_[key], export=export) + '\n'
+        if hasattr(_dict_[key], 'as_ts_class'):
+            output += _dict_[key].as_ts_class(export=export) + '\n'
+        elif hasattr(_dict_[key], 'as_ts_type'):
+            output += _dict_[key].as_ts_type(export=export) + '\n'
+        else:
+            output += model_to_ts_type(_dict_[key], export=export) + '\n'
 
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(output)

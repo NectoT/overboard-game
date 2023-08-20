@@ -1,6 +1,9 @@
 <script lang="ts">
     import type { PageData, ActionData } from "./$types";
-    import type { Game, GameEvent, HostChange, NameChange, Player, PlayerConnect, PlayerEvent } from "$lib/gametypes";
+    import {
+        PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange,
+        type Player
+    } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import { WEBSOCKET_URL } from "$lib/constants";
     import { onMount } from "svelte";
@@ -19,7 +22,7 @@
         );
         console.log("Websocket connection made");
         websocket.onopen = (event) => {
-            sendEvent({type: "PlayerConnect", client_id: data.clientId});
+            sendEvent(new PlayerConnect(data.clientId));
             addPlayer($clientId, {});
         };
 
@@ -38,11 +41,12 @@
         }
 
         websocket.onclose = (event) => {
-
+            console.log("Connection closed. Reason: " + event.reason);
         }
     })
 
-    function sendEvent(event: PlayerEvent & {[key: string]: any}) {
+    function sendEvent(event: PlayerEvent) {
+        console.log("Sent " + event.type);
         websocket.send(JSON.stringify(event));
     }
 
@@ -65,11 +69,7 @@
 
     function handleNameChange(event: CustomEvent<{clientId: string, newName: string}>) {
         changeName(event.detail.clientId, event.detail.newName);
-        sendEvent({
-            type: "NameChange",
-            client_id: event.detail.clientId,
-            new_name: event.detail.newName
-        } satisfies NameChange)
+        sendEvent( new NameChange(event.detail.clientId, event.detail.newName))
     }
 
     $: isHost = gameInfo?.host === $clientId;
