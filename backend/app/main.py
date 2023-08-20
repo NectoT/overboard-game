@@ -39,11 +39,6 @@ app.include_router(websocket_connections.router)
 app.include_router(eventhandlers.router)
 
 
-@app.post('/{game_id}/start')
-def start_game(game_id: int):
-    pass
-
-
 @app.post('/create')
 def create_game(
     game_id: Annotated[int, Query(description="Идентификатор для новой игры")],

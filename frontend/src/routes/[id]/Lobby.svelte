@@ -10,7 +10,8 @@
     export let players: Game["players"];
 
     let dispatch = createEventDispatcher<{
-        nameChange: {clientId: string, newName: string}
+        nameChange: {clientId: string, newName: string},
+        gameStart: null
     }>();
 
     let playerCount = 0;
@@ -47,6 +48,11 @@
     const minPlayers = 2;
 
     $: loaderText = playerCount < minPlayers ? "Ожидание игроков" : "Ожидание хоста";
+
+    function handleStartButton(event: MouseEvent) {
+        event.preventDefault()
+        dispatch('gameStart');
+    }
 </script>
 
 <svelte:window bind:innerWidth={windowWidth}></svelte:window>
@@ -67,7 +73,12 @@
             <BoatLoader text="{loaderText}"></BoatLoader>
         </div>
         {#if isHost && playerCount >= minPlayers}
-            <a transition:fade={{duration: 2000}} id="start-game" href="#start">Начать</a>
+            <a
+                transition:fade={{duration: 2000}}
+                id="start-game"
+                href="#start"
+                on:click={handleStartButton}
+            >Начать</a>
         {/if}
     </div>
 

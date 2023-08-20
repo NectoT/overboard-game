@@ -2,7 +2,7 @@
     import type { PageData, ActionData } from "./$types";
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange,
-        type Player
+        type Player, GameStart
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import { WEBSOCKET_URL } from "$lib/constants";
@@ -31,12 +31,21 @@
 
             console.log("Received " + data.type);
 
-            if (data.type === 'PlayerConnect') {
-                addPlayer((data as PlayerConnect).client_id, {});
-            } else if (data.type === 'HostChange') {
-                changeHost((data as HostChange).new_host);
-            } else if (data.type === 'NameChange') {
-                changeName((data as NameChange).client_id, (data as NameChange).new_name)
+            switch (data.type) {
+                case 'PlayerConnect':
+                    addPlayer((data as PlayerConnect).client_id, {});
+                    break;
+                case 'HostChange':
+                    changeHost((data as HostChange).new_host);
+                    break;
+                case 'NameChange':
+                    changeName((data as NameChange).client_id, (data as NameChange).new_name)
+                    break;
+                case 'GameStart':
+                    startGame()
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -72,7 +81,26 @@
         sendEvent( new NameChange(event.detail.clientId, event.detail.newName))
     }
 
+    function startGame() {
+        gameInfo.started = true;
+        gameInfo = gameInfo;
+    }
+
+    function handleGameStart() {
+        startGame();
+        sendEvent(new GameStart($clientId));
+    }
+
     $: isHost = gameInfo?.host === $clientId;
 </script>
 
-<Lobby players={gameInfo.players} isHost={isHost} on:nameChange={handleNameChange}></Lobby>
+{#if gameInfo.started}
+    We've started boys!
+{:else}
+    <Lobby
+        players={gameInfo.players}
+        isHost={isHost}
+        on:nameChange={handleNameChange}
+        on:gameStart={handleGameStart}
+    ></Lobby>
+{/if}

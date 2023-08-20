@@ -30,7 +30,7 @@ def playerevent(func: Callable[[int, PlayerEvent], Any]) -> Callable[[int, Playe
         Декоратор, маркирующий функцию как обработчик игрового события от игрока.
         Для каждого типа игрового события может быть только одна функция с этим декоратором
 
-        #### Функции с данным декоратором работают с базой данных, а не с моделью
+        #### Функции с данным декоратором изменяют игру в базе данных
 
         Функции с этим декоратором добавляются как путь в FastAPI `router`.
 
@@ -101,3 +101,15 @@ def on_player_connect(game_id, event: PlayerConnect):
         host_event = HostChange(new_host=event.client_id)
         db['games'].update_one({'id': game_id}, host_event.as_mongo_update())
         return host_event
+
+
+@playerevent
+def start_game(game_id, event: GameStart):
+    game_document = db['games'].find_one({'id': game_id})
+    game: Game = Game.construct(**game_document)
+
+    if game.host != event.client_id:
+        raise HTTPException(403, detail='Received event does not belong to game host')
+
+    base(game_id, event)
+    print('Started the game')

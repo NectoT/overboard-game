@@ -1,7 +1,7 @@
 import asyncio
 from typing import Awaitable, Annotated
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
 from pydantic import ValidationError
 
 from .databases import mongo_db as db
@@ -100,17 +100,20 @@ class GameManager:
                 json: dict = await self.websockets[client_id].receive_json()
                 event: PlayerEvent = PlayerEvent.from_dict(json)
 
+                # Сначала обрабатываем событие, чтобы не пересылать событие,
+                # которое оказалось неверным
+                response_event = handle_player(self.game_id, event)
+
                 # пересылаем событие всем, кому нужно
                 await self.send(event, from_player=client_id)
 
-                response_event = handle_player(self.game_id, event)
+                # Отсылаем ответное событие от сервера, если оно есть
                 if response_event is not None:
                     await self.send(response_event)
 
-            except (AttributeError, ValidationError) as e:
-                await self.websockets[client_id].send_json(
-                    SocketError(message=str(e)).dict()
-                )
+            except (AttributeError, TypeError, ValidationError, HTTPException) as e:
+                await self.websockets[client_id].close(reason=str(e))
+                break
             except WebSocketDisconnect:
                 del self.websockets[client_id]
                 break

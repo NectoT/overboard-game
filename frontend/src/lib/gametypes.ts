@@ -63,6 +63,16 @@ export class NameChange {
 	}
 };
 
+export class GameStart {
+	type = 'GameStart';
+	targets: Array<string> | EventTargets;
+	client_id: string;
+	constructor(client_id: string, targets = EventTargets.All, ) {
+		this.targets = targets;
+		this.client_id = client_id;
+	}
+};
+
 export type SocketError = {
 	message: string;
 };
