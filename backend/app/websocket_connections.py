@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from .databases import mongo_db as db
 from .models import *
+from .routers.eventhandlers import handle_player
 
 router = APIRouter(tags=['Websocket Connection'])
 
@@ -52,8 +53,7 @@ class GameManager:
         await websocket.accept()
         if client_id in self.websockets:
             reason = "Client made a new websocket connection"
-            websocket = self.websockets[client_id]
-            asyncio.create_task(websocket.close(reason=reason))
+            await self.websockets[client_id].close(reason=reason)
 
         self.websockets[client_id] = websocket
         await self._handle_socket(client_id)
@@ -66,13 +66,27 @@ class GameManager:
         await asyncio.gather(*coroutines)
         self.websockets.clear()
 
-    async def send(self, event: GameEvent) -> None:
+    async def send(self, event: GameEvent, from_player: str | None = None) -> None:
         '''
-        Отправляет игровое событие, инициируемое сервером, всем клиентам-игрокам, подключенным
-        к этой игре
+        Отправляет игровое событие, всем, кому оно предназначено
+
+        (Определяет, кому оно предназначено с помощью `event.targets`)
+
+        @from_player: Идентификатор игрока, от которого было изначально получено событие. `None`, если событие создано сервером
         '''
+
+        ids = ()
+        if event.targets == EventTargets.All:
+            ids = set(self.websockets.keys())
+            if from_player is not None:
+                ids.remove(from_player)
+        elif event.targets != EventTargets.Server:
+            ids = event.targets
+
         coroutines = []
-        for client_id in self.websockets:
+        for client_id in ids:
+            if client_id not in self.websockets:
+                continue  # Мало ли фейковых id переслали с событием
             coroutines.append(self.websockets[client_id].send_json(event.dict()))
         await asyncio.gather(*coroutines)
 
@@ -86,28 +100,12 @@ class GameManager:
                 json: dict = await self.websockets[client_id].receive_json()
                 event: PlayerEvent = PlayerEvent.from_dict(json)
 
-                game_document = db['games'].find_one({'id': self.game_id})
-                game: Game = Game.construct(**game_document)
+                # пересылаем событие всем, кому нужно
+                await self.send(event, from_player=client_id)
 
-                if isinstance(event, PlayerConnect) and event.client_id in game.players:
-                    continue
-                else:
-                    db['games'].update_one({'id': self.game_id}, event.as_mongo_update())
-
-                if (isinstance(event, PlayerConnect) and game.host is None):
-                    # Первый подключившийся к бесхозной игре становится её хостом
-                    host_event = HostChange(new_host=event.client_id)
-                    db['games'].update_one({'id': self.game_id}, host_event.as_mongo_update())
-                    await self.send(host_event)
-
-
-                coroutines = []
-                for key in self.websockets:
-                    if client_id != key:
-                        coroutines.append(
-                            self.websockets[key].send_json(event.dict())
-                        )
-                await asyncio.gather(*coroutines)
+                response_event = handle_player(self.game_id, event)
+                if response_event is not None:
+                    await self.send(response_event)
 
             except (AttributeError, ValidationError) as e:
                 await self.websockets[client_id].send_json(

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from .models import *
 from .databases import mongo_db as db
 from . import websocket_connections
+from .routers import eventhandlers
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.add_middleware(
 
 
 app.include_router(websocket_connections.router)
+app.include_router(eventhandlers.router)
 
 
 @app.post('/{game_id}/start')
