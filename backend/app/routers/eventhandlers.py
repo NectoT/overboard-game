@@ -12,7 +12,13 @@ def game_exists(game_id: int):
         raise HTTPException(422, detail='No game with this id found')
 
 
-router = APIRouter(tags=["Event Handlers"], prefix="/{game_id}", dependencies=[Depends(game_exists)])
+router = APIRouter(tags=["События игрока"], prefix="/{game_id}", dependencies=[Depends(game_exists)])
+tag_meta = {
+    "name": "События игрока",
+    "description": ('#### События, которые отправляет игрок для того, чтобы сообщить серверу ' +
+                    'об изменении игры. Все эти события так же можно (и желательно) отправлять ' +
+                    'с помощью вебсокет-подключения')
+}
 
 
 __event_handlers: dict[str, Callable[[int, PlayerEvent], GameEvent | None]] = {}
