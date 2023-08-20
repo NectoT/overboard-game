@@ -77,6 +77,7 @@
                 <LobbyPlayer
                     name={player.name ?? 'Name is null' }
                     editable={$clientId === player.id}
+                    on:nameChange={(e) => dispatch('nameChange', {...e.detail, clientId: player.id})}
                 ></LobbyPlayer>
             {/each}
         </div>
