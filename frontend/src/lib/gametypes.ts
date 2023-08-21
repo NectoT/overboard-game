@@ -1,12 +1,3 @@
-export type GameInfo = {
-	id: number;
-	started: boolean;
-};
-
-export type Player = {
-	name?: string;
-};
-
 export enum EventTargets {
 	All = "All",
 	Server = "Server",
@@ -17,16 +8,6 @@ export class GameEvent {
 	targets: Array<string> | EventTargets;
 	constructor(targets = EventTargets.All, ) {
 		this.targets = targets;
-	}
-};
-
-export class HostChange {
-	type = 'HostChange';
-	targets: Array<string> | EventTargets;
-	new_host: string;
-	constructor(new_host: string, targets = EventTargets.All, ) {
-		this.targets = targets;
-		this.new_host = new_host;
 	}
 };
 
@@ -74,8 +55,23 @@ export class StartRequest {
 	}
 };
 
-export type SocketError = {
-	message: string;
+export class HostChange {
+	type = 'HostChange';
+	targets: Array<string> | EventTargets;
+	new_host: string;
+	constructor(new_host: string, targets = EventTargets.All, ) {
+		this.targets = targets;
+		this.new_host = new_host;
+	}
+};
+
+export type GameInfo = {
+	id: number;
+	started: boolean;
+};
+
+export type Player = {
+	name?: string;
 };
 
 export enum GameViewpoint {
