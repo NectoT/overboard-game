@@ -59,16 +59,33 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
             definition = schema['definitions'][type_name]
             if 'enum' in definition and definition['title'] not in handled_enum_types:
                 handled_enum_types.append(definition['title'])
-                if definition['type'] == 'string':
+
+                enum_type: type = type(definition["enum"][0])
+                if BaseModel in enum_type.mro():
+                    # Создаём typescript класс с статическими полями
+                    output += export_str + f'const {definition["title"]} = {{\n'
+                else:
                     # Создаём typescript enum
                     output += export_str + f'enum {definition["title"]} {{\n'
-                    for value in definition['enum']:
-                        output += f'\t{value} = "{value}",\n'
-                    output += '};\n\n'
-                else:
-                    # Создаём typescript тип с ограниченным кол-вом значений
-                    output += export_str + f'type {definition["title"]} = '
-                    output += ' | '.join(map(str, definition['enum'])) + ';\n\n'
+
+                enum_names: list[str] = _dict_[definition['title']]._member_names_
+                for i in range(len(definition['enum'])):
+                    value: object = definition['enum'][i]
+                    name = enum_names[i]
+                    if BaseModel in enum_type.mro():
+                        value_str = '{' + str(value).replace(' ', ', ').replace('=', ': ') + '}'
+                        output += f'\t{name}: {value_str},\n'
+                    elif enum_type is str:
+                        output += f'\t{name} = "{value}",\n'
+                    elif enum_type is bool:  # ...Ну мало ли
+                        output += f'\t{name} = {value},\n'
+                    else:
+                        output += f'\t{name} = {value},\n'
+
+                output += '};\n\n'
+                if BaseModel in enum_type.mro():
+                    # Создаём typescript класс с статическими полями
+                    output += export_str + f'type {definition["title"]} = {enum_type.__name__}\n\n'
 
         # транспилируем саму модель
         if hasattr(_dict_[key], 'as_ts_class'):
