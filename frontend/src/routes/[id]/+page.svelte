@@ -2,7 +2,7 @@
     import type { PageData, ActionData } from "./$types";
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange,
-        type Player, GameStart
+        type Player, StartRequest
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import { WEBSOCKET_URL } from "$lib/constants";
@@ -88,7 +88,7 @@
 
     function handleGameStart() {
         startGame();
-        sendEvent(new GameStart($clientId));
+        sendEvent(new StartRequest($clientId));
     }
 
     $: isHost = gameInfo?.host === $clientId;

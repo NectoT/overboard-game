@@ -104,7 +104,7 @@ def on_player_connect(game_id, event: PlayerConnect):
 
 
 @playerevent
-def start_game(game_id, event: GameStart):
+def start_game(game_id, event: StartRequest):
     game_document = db['games'].find_one({'id': game_id})
     game: Game = Game.construct(**game_document)
 

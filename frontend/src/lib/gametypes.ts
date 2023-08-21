@@ -63,8 +63,9 @@ export class NameChange {
 	}
 };
 
-export class GameStart {
-	type = 'GameStart';
+/** Просьба от хоста начать игру */
+export class StartRequest {
+	type = 'StartRequest';
 	targets: Array<string> | EventTargets;
 	client_id: string;
 	constructor(client_id: string, targets = EventTargets.All, ) {
