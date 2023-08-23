@@ -102,14 +102,15 @@ class GameManager:
 
                 # Сначала обрабатываем событие, чтобы не пересылать событие,
                 # которое оказалось неверным
-                response_event = handle_player(self.game_id, event)
+                response_events = handle_player(self.game_id, event)
 
                 # пересылаем событие всем, кому нужно
                 await self.send(event, from_player=client_id)
 
-                # Отсылаем ответное событие от сервера, если оно есть
-                if response_event is not None:
-                    await self.send(response_event)
+                # Отсылаем ответные событие от сервера, если они есть
+                if response_events is not None:
+                    for event in response_events:
+                        await self.send(event)
 
             except (AttributeError, TypeError, ValidationError, HTTPException) as e:
                 await self.websockets[client_id].close(reason=str(e))

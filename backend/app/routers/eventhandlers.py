@@ -21,7 +21,7 @@ tag_meta = {
 }
 
 
-__event_handlers: dict[str, Callable[[int, PlayerEvent], GameEvent | None]] = {}
+__event_handlers: dict[str, Callable[[int, PlayerEvent], list[GameEvent] | None]] = {}
 '''Словарь с обработчиками событий, где ключ - это тип события в виде строки'''
 
 
@@ -64,7 +64,7 @@ def playerevent(func: Callable[[int, PlayerEvent], Any]) -> Callable[[int, Playe
     return func
 
 
-def handle_player(game_id: int, event: PlayerEvent) -> GameEvent | None:
+def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
     '''
     Автоматически подбирает и вызывает обработчик для игрового события игрока.
 
@@ -83,7 +83,7 @@ def handle_player(game_id: int, event: PlayerEvent) -> GameEvent | None:
 
 
 @playerevent
-def base(game_id: int, event: PlayerEvent):
+def apply_event(game_id: int, event: PlayerEvent):
     '''Применяет переданные событием изменения к игре'''
     db['games'].update_one({'id': game_id}, event.as_mongo_update())
 
@@ -100,7 +100,7 @@ def on_player_connect(game_id, event: PlayerConnect):
         # Первый подключившийся к бесхозной игре становится её хостом
         host_event = HostChange(new_host=event.client_id)
         db['games'].update_one({'id': game_id}, host_event.as_mongo_update())
-        return host_event
+        return [host_event]
 
 
 @playerevent
@@ -111,5 +111,4 @@ def start_game(game_id, event: StartRequest):
     if game.host != event.client_id:
         raise HTTPException(403, detail='Received event does not belong to game host')
 
-    base(game_id, event)
-    print('Started the game')
+    apply_event(game_id, event)
