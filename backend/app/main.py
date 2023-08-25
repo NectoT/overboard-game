@@ -10,6 +10,7 @@ from pymongo import MongoClient
 from pydantic import BaseModel, ValidationError
 
 from .models import *
+from .models import tests
 from .databases import mongo_db as db
 from . import websocket_connections
 from .routers import eventhandlers
@@ -19,7 +20,9 @@ from .routers import eventhandlers
 async def lifespan(app: FastAPI):
     # На время разработки это актуально, в рабочем коде этого явно быть не должно
     generate_ts_models("C:/Users/nectot/Desktop/overboard/frontend/src/lib/gametypes.ts")
-
+    result = tests.run()
+    if len(result.failures) > 0:
+        raise AssertionError(result.failures[0][1])
     yield
 
 

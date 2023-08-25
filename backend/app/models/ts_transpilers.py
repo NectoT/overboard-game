@@ -36,3 +36,62 @@ def model_to_ts_type(model: type[BaseModel], export=True) -> str:
     output += '};\n'
 
     return output
+
+
+def model_to_ts_class(model, default_fields: dict[str, str] = {},
+                      readonly_fields: dict[str, str] = {}, export=True) -> str:
+        '''
+        Конвертирует модель в typescript класс с простым конструктором и дефолтными значениями
+
+        @default_fields: пары строк `Имя поля; Значение поля в ts-виде` для установки дефолтных полей
+        @readonly_fields: пары строк `Имя поля; Значение поля в ts-виде` для установки константных полей
+
+        :returns: Строку с typescript классом
+        '''
+
+        # Я не смог сделать универсальный конвертатор модели в класс, потому что там беда с
+        # дефолтными значениями, поэтому приходится их заранее конвертировать и передавать сюда
+
+        schema: dict = model.schema()
+        export_str = 'export ' if export else ''
+        doc = '' if (model.__doc__ is None) else f'/** {(model.__doc__)} */\n'
+        output = doc + export_str + f'class {schema["title"]} {{\n'
+
+        class_body = ''
+        constructor_head = '\tconstructor('
+        constructor_body = ''
+
+        # Отдельно, потому что необязательные аргументы обязаны быть в конце
+        constructor_head_end = ''
+
+        properties: dict = schema['properties']
+        for name in properties:
+            property = properties[name]
+
+            if name in readonly_fields:
+                class_body += f"\t{name} = '{readonly_fields[name]}';\n"
+                continue  # Не добавляем type в конструктор
+
+            is_required = not model.__fields__[name].allow_none
+            required_char = '' if is_required else '?'
+            property_type = _get_property_type(property)
+
+            class_body += f'\t{name}{required_char}: {property_type};\n'
+
+            if name in default_fields and 'default' in property:
+                arg = f'{name} = {default_fields[name]}, '
+            else:
+                arg = f'{name}{required_char}: {property_type}, '
+
+            if is_required and name not in default_fields:
+                constructor_head += arg
+            else:
+                constructor_head_end += arg
+            constructor_body += f'\t\tthis.{name} = {name};\n'
+
+        constructor_head += constructor_head_end + ') {\n'
+        constructor = constructor_head + constructor_body + '\t}\n'
+
+        output += class_body + constructor
+        output += '};\n'
+        return output

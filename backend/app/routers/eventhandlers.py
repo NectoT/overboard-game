@@ -1,5 +1,6 @@
 import re
 from typing import Any, Callable
+import random
 
 from fastapi import APIRouter, HTTPException, Depends
 
@@ -82,6 +83,11 @@ def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
     raise TypeError('No event handler for this event is available')
 
 
+def get_game(game_id: int) -> Game:
+    game_document = db['games'].find_one({'id': game_id})
+    return Game.construct(**game_document)
+
+
 @playerevent
 def apply_event(game_id: int, event: PlayerEvent):
     '''Применяет переданные событием изменения к игре'''
@@ -90,8 +96,7 @@ def apply_event(game_id: int, event: PlayerEvent):
 
 @playerevent
 def on_player_connect(game_id, event: PlayerConnect):
-    game_document = db['games'].find_one({'id': game_id})
-    game: Game = Game.construct(**game_document)
+    game = get_game(game_id)
 
     if event.client_id not in game.players:
         db['games'].update_one({'id': game_id}, event.as_mongo_update())
@@ -105,10 +110,30 @@ def on_player_connect(game_id, event: PlayerConnect):
 
 @playerevent
 def start_game(game_id, event: StartRequest):
-    game_document = db['games'].find_one({'id': game_id})
-    game: Game = Game.construct(**game_document)
+    game = get_game(game_id)
 
     if game.host != event.client_id:
         raise HTTPException(403, detail='Received event does not belong to game host')
 
-    apply_event(game_id, event)
+    responses = []
+
+    # Рандомно выбираем персонажей из CharacterEnum
+    enum_names = random.sample(CharactersEnum._member_names_, k=len(game.players))
+
+    assigned_characters = {}
+    for name, client_id in zip(enum_names, game.players):
+        assigned_characters[client_id] = CharactersEnum[name].value
+
+    start_event = GameStart(assigned_characters=assigned_characters)
+    apply_event(game_id, start_event)
+    responses.append(start_event)
+
+    # Выдаём каждому по припасу
+    supply_enum_names = random.choices(SuppliesEnum._member_names_, k=len(game.players))
+    for name, client_id in zip(supply_enum_names, game.players):
+        supply = SuppliesEnum[name].value
+        event = NewSupplies(targets=[client_id], supplies=[supply])
+        apply_event(game_id, event)
+        responses.append(event)
+
+    return responses

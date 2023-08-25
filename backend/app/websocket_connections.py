@@ -66,11 +66,13 @@ class GameManager:
         await asyncio.gather(*coroutines)
         self.websockets.clear()
 
-    async def send(self, event: GameEvent, from_player: str | None = None) -> None:
+    async def send(self, event: GameEvent | Observable, from_player: str | None = None) -> None:
         '''
         Отправляет игровое событие, всем, кому оно предназначено
 
-        (Определяет, кому оно предназначено с помощью `event.targets`)
+        Определяет, кому оно предназначено с помощью `event.targets`.
+        Если это `Observable` с точки зрения наблюдателя, отправляет событие всем, кто не указан в
+        `event.targets`.
 
         @from_player: Идентификатор игрока, от которого было изначально получено событие. `None`, если событие создано сервером
         '''
@@ -80,7 +82,12 @@ class GameManager:
             ids = set(self.websockets.keys())
             if from_player is not None:
                 ids.remove(from_player)
-        elif event.targets != EventTargets.Server:
+        elif event.targets == EventTargets.Server:
+            pass
+        elif isinstance(event, ObservableEvent) and event.observed:
+            # Это событие с точки зрения наблюдателя, значит надо посылать всем, кто не в targets
+            ids = set(self.websockets.keys()).difference(set(event.targets))
+        else:
             ids = event.targets
 
         coroutines = []
@@ -112,9 +119,13 @@ class GameManager:
                     for event in response_events:
                         await self.send(event)
 
+                        # Если это видимое другим событие, посылаем им изменённый вариант события
+                        if isinstance(event, ObservableEvent):
+                            await self.send(event.observer_viewpoint())
+
             except (AttributeError, TypeError, ValidationError, HTTPException) as e:
                 await self.websockets[client_id].close(reason=str(e))
-                break
+                raise e
             except WebSocketDisconnect:
                 del self.websockets[client_id]
                 break

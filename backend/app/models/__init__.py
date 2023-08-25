@@ -96,4 +96,5 @@ def generate_ts_models(file_path: str, excluded_models: list[type]=[],
             output += model_to_ts_type(_dict_[key], export=export) + '\n'
 
     with open(file_path, 'w', encoding='utf-8') as file:
+        file.write(f'/** Автосгенерирован функцией {generate_ts_models.__name__} в модуле {__name__} */\n\n')
         file.write(output)

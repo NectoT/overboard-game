@@ -16,5 +16,3 @@ class NameChange(PlayerEvent):
 
 class StartRequest(PlayerEvent):
     '''Просьба от хоста начать игру'''
-    def as_mongo_update(self) -> dict:
-        return {'$set': {'started': True}}
