@@ -5,7 +5,7 @@
         StartRequest, type Character, GameStart, NewSupplies, type Supply
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
-    import Game from "./Game.svelte";
+    import GameBoard from "./GameBoard.svelte";
     import { WEBSOCKET_URL } from "$lib/constants";
     import { onMount } from "svelte";
     import { page } from "$app/stores";
@@ -148,7 +148,7 @@
 </script>
 
 {#if gameInfo.started}
-    <Game gameInfo={gameInfo} playersOnBoard={playersOnBoard}></Game>
+    <GameBoard gameInfo={gameInfo} playersOnBoard={playersOnBoard}></GameBoard>
 {:else}
     <Lobby
         players={gameInfo.players}
