@@ -1,4 +1,4 @@
-from .base_events import PlayerEvent
+from .base_events import PlayerEvent, EventTargets
 
 
 class PlayerConnect(PlayerEvent):
@@ -16,3 +16,4 @@ class NameChange(PlayerEvent):
 
 class StartRequest(PlayerEvent):
     '''Просьба от хоста начать игру'''
+    targets: EventTargets = EventTargets.Server
