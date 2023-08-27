@@ -50,6 +50,20 @@ class GameStart(GameEvent):
         return update
 
 
+class NewRelationships(TargetedEvent):
+    '''Событие, получаемое игроком при назначении друга и врага'''
+    friend_client_id: str
+    '''Идентификатор клиента, который стал другом'''
+    enemy_client_id: str
+    '''Идентификатор клиента, который стал врагом'''
+
+    def as_mongo_update(self) -> dict:
+        return {'$set': {
+            f'players.{self.targets[0]}.friend': self.friend_client_id,
+            f'players.{self.targets[0]}.enemy': self.enemy_client_id,
+        }}
+
+
 class NewSupplies(TargetedEvent, ObservableEvent):
     '''Клиент получил карту или карты припасов'''
     supplies: list[Supply | UNKNOWN]

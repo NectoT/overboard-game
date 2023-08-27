@@ -2,6 +2,7 @@
     import type { Player, Supply } from "$lib/gametypes";
     import { flip } from "svelte/animate";
     import { fly } from "svelte/transition";
+    import { clientId } from "./stores";
 
     export let player: Player;
     $: supplies = player.supplies as Array<Supply>;
@@ -31,7 +32,8 @@
     <div id="weapon-slot">
 
     </div>
-    <div class="portrait" style="background-image: url(characters/{player.character?.name}.png);">
+    <div class="portrait" style="background-image: url(characters/{player.character?.name}.png);"
+    class:enemy={player.enemy === $clientId} class:friend={player.friend === $clientId}>
     </div>
     <div id="supplies">
         {#each supplies as supply, i (supply.type)}
@@ -127,5 +129,15 @@
         aspect-ratio: 2.2 / 3;
 
         z-index: 2;
+
+        transition: filter 0.5s;
+    }
+
+    .portrait.enemy {
+        filter: drop-shadow(0px 0px 20px var(--enemy-color));
+    }
+
+    .portrait.friend {
+        filter: drop-shadow(0px 0px 20px var(--friend-color));
     }
 </style>

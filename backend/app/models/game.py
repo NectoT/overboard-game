@@ -158,6 +158,10 @@ class Player(Observable):
     name: str = None
     character: Character = None
     supplies: list[Supply | UNKNOWN] = []
+    friend: str = None
+    '''Идентификатор клиента, который является другом'''
+    enemy: str = None
+    '''Идентификатор клиента, который является врагом'''
 
 
 class Game(Observable):

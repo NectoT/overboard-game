@@ -1,21 +1,18 @@
 <script lang="ts">
+    import { Relation } from "$lib/constants";
     import type { Player } from "$lib/gametypes";
     import { backOut } from "svelte/easing";
     import { scale } from "svelte/transition";
 
-    enum Relation {
-        Friend,
-        Enemy,
-        Neutral
-    }
-
     export let player: Player;
-    export let relation = Relation.Neutral;
+    export let relation: Relation = Relation.Neutral;
 </script>
 
 <div id="outer-container">
     <h2 class="name">{player.name}</h2>
-    <div class="portrait">
+    <div class="portrait"
+    class:enemy={relation === Relation.Enemy}
+    class:friend={relation === Relation.Friend}>
         <img
         alt="Player icon"
         class="character"
@@ -46,10 +43,8 @@
         aspect-ratio: 14 / 10;
         column-gap: 10px;
 
-
-        --enemy-color: rgb(191, 39, 39);
-        --friend-color: rgb(39, 140, 191);
         --neutral-color: rgb(154, 171, 204);
+        --inner-color: rgb(235, 196, 176);
     }
 
     .name {
@@ -76,7 +71,17 @@
         border-width: 8px;
         /* border-color: black; */
 
-        background-image: radial-gradient(rgb(235, 196, 176), var(--neutral-color));
+        background-image: radial-gradient(var(--inner-color), transparent);
+        background-color: var(--neutral-color);
+        transition: background-color 0.4s;
+    }
+
+    .portrait.enemy {
+        background-color: var(--enemy-color);
+    }
+
+    .portrait.friend {
+        background-color: var(--friend-color);
     }
 
     .character {

@@ -83,9 +83,9 @@ export class NameChange {
 /** Просьба от хоста начать игру */
 export class StartRequest {
 	type = 'StartRequest';
-	targets: Array<string> | EventTargets;
+	targets: any;
 	client_id: string;
-	constructor(client_id: string, targets = EventTargets.All, ) {
+	constructor(client_id: string, targets = EventTargets.Server, ) {
 		this.targets = targets;
 		this.client_id = client_id;
 	}
@@ -171,6 +171,19 @@ export class GameStart {
 	}
 };
 
+/** Событие, получаемое игроком при назначении друга и врага */
+export class NewRelationships {
+	type = 'NewRelationships';
+	targets: Array<string> | EventTargets;
+	friend_client_id: string;
+	enemy_client_id: string;
+	constructor(friend_client_id: string, enemy_client_id: string, targets = EventTargets.All, ) {
+		this.targets = targets;
+		this.friend_client_id = friend_client_id;
+		this.enemy_client_id = enemy_client_id;
+	}
+};
+
 /** Клиент получил карту или карты припасов */
 export class NewSupplies {
 	observed: boolean;
@@ -194,11 +207,15 @@ export class Player {
 	name?: string;
 	character?: Character;
 	supplies: Array<Supply | UNKNOWN>;
-	constructor(supplies: Array<Supply | UNKNOWN>, observed = false, name?: string, character?: Character, ) {
+	friend?: string;
+	enemy?: string;
+	constructor(supplies: Array<Supply | UNKNOWN>, observed = false, name?: string, character?: Character, friend?: string, enemy?: string, ) {
 		this.observed = observed;
 		this.name = name;
 		this.character = character;
 		this.supplies = supplies;
+		this.friend = friend;
+		this.enemy = enemy;
 	}
 };
 

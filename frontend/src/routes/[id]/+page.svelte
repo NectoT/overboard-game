@@ -2,23 +2,43 @@
     import type { PageData } from "./$types";
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange, Player,
-        StartRequest, type Character, GameStart, NewSupplies, type Supply
+        StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships
+
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
-    import { WEBSOCKET_URL } from "$lib/constants";
+    import { Relation, WEBSOCKET_URL } from "$lib/constants";
     import { onMount } from "svelte";
     import { page } from "$app/stores";
     import { clientId } from "./stores";
+    import GamePopup from "./GamePopup.svelte";
+    import FrenemyCard from "./FrenemyCard.svelte";
 
     export let data: PageData;
     let gameInfo = data.game;
     clientId.set(data.clientId)
 
+    let enemyName: string;
+    let friendName: string;
+    $: {
+        if (gameInfo.started) {
+            let enemyId = gameInfo.players[$clientId].enemy;
+            if (enemyId !== undefined) {
+                enemyName = gameInfo.players[enemyId].character!.name;
+            }
+            let friendId = gameInfo.players[$clientId].friend;
+            if (friendId !== undefined) {
+                friendName = gameInfo.players[friendId].character!.name;
+            }
+        }
+    }
+
     let websocket: WebSocket;
 
     // Temp
     let playersOnBoard = gameInfo.started;
+    /** Показать клиенту карты с врагом и другом */
+    let showFrenemies = false;
 
     async function delay(ms: number) {
         await new Promise(res => setTimeout(res, 1000));
@@ -50,6 +70,10 @@
                     startGame((event as GameStart).assigned_characters);
                     await delay(1000);
                     playersOnBoard = true;
+                },
+                'NewRelationships': async (event) => {
+                    let e = event as NewRelationships;
+                    await setFrenemies(e.friend_client_id, e.enemy_client_id);
                 },
                 'NewSupplies': async (event: GameEvent) => {
                     let e = event as NewSupplies;
@@ -134,6 +158,21 @@
         sendEvent(new StartRequest($clientId));
     }
 
+    async function setFrenemies(friendClientId: string, enemyClientId: string) {
+        gameInfo.players[$clientId].enemy = enemyClientId;
+        gameInfo.players[$clientId].friend = friendClientId;
+
+        showFrenemies = true;
+
+        // Ждём пока в модале showFrenemies не станет опять false
+        // Лучшего способа ожидания закрытия модала я не придумал
+        while (showFrenemies) {
+            await delay(50);
+        }
+
+        gameInfo = gameInfo;
+    }
+
     function receiveSupplies(clientId: string, supplies: Array<Supply>) {
         gameInfo.players[clientId].supplies.push(...supplies);
         gameInfo = gameInfo
@@ -148,12 +187,20 @@
 </script>
 
 {#if gameInfo.started}
-    <GameBoard gameInfo={gameInfo} playersOnBoard={playersOnBoard}></GameBoard>
+{#if showFrenemies}
+<GamePopup buttonText="Got it" on:click={() => showFrenemies = false}>
+    <svelte:fragment slot="main">
+        <FrenemyCard name={friendName} relation={Relation.Friend} --width={'300px'}></FrenemyCard>
+        <FrenemyCard name={enemyName} relation={Relation.Enemy} --width={'300px'}></FrenemyCard>
+    </svelte:fragment>
+</GamePopup>
+{/if}
+<GameBoard gameInfo={gameInfo} playersOnBoard={playersOnBoard}></GameBoard>
 {:else}
-    <Lobby
-        players={gameInfo.players}
-        isHost={isHost}
-        on:nameChange={handleNameChange}
-        on:gameStart={handleStartRequest}
-    ></Lobby>
+<Lobby
+    players={gameInfo.players}
+    isHost={isHost}
+    on:nameChange={handleNameChange}
+    on:gameStart={handleStartRequest}
+></Lobby>
 {/if}

@@ -131,6 +131,17 @@ def start_game(game_id, event: StartRequest):
     apply_event(game_id, start_event)
     responses.append(start_event)
 
+    # Назначаем друзей и врагов
+    friend_ids = list(game.players)
+    random.shuffle(friend_ids)
+    enemy_ids = list(game.players)
+    random.shuffle(enemy_ids)
+    for client_id, friend, enemy in zip(game.players, friend_ids, enemy_ids):
+        event = NewRelationships(targets=[client_id],
+                                 friend_client_id=friend, enemy_client_id=enemy)
+        apply_event(game_id, event)
+        responses.append(event)
+
     # Выдаём каждому по припасу
     supply_enum_names = random.choices(SuppliesEnum._member_names_, k=len(game.players))
     for name, client_id in zip(supply_enum_names, game.players):

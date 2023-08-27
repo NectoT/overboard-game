@@ -6,15 +6,38 @@
     import PlayerInfo from "./PlayerInfo.svelte";
     import PlayerCorner from "./PlayerCorner.svelte";
     import { clientId } from "./stores";
+    import { Relation } from "$lib/constants";
 
     export let gameInfo: Game;
+
     type PlayerWithId = Player & {id: string};
     let players: Array<PlayerWithId> = [];
+
+    /** Объект с отношением текущего клиента к другим игрокам */
+    let relations: {[clientId: string]: Relation} = {};
+
     $: {
         players = [];
+        relations = {};
+        const clientPlayer = gameInfo.players[$clientId];
         for (const key in gameInfo.players) {
-            players.push({...gameInfo.players[key], id: key});
+            let player = gameInfo.players[key];
+            players.push({...player, id: key});
+
+            // Значит клиент наблюдатель
+            if (clientPlayer === undefined) {
+                continue;
+            }
+
+            if (clientPlayer.enemy === key) {
+                relations[key] = Relation.Enemy;
+            } else if (clientPlayer.friend === key) {
+                relations[key] = Relation.Friend;
+            } else {
+                relations[key] = Relation.Neutral;
+            }
         }
+
     }
 
     $: clientPlayer = players.find((player) => player.id === $clientId);
@@ -46,7 +69,7 @@
     <div id="other-players">
         {#each players as player (player.id)}
         {#if player.id !== $clientId}
-        <PlayerInfo player={player}></PlayerInfo>
+        <PlayerInfo player={player} relation={relations[player.id]}></PlayerInfo>
         {/if}
         {/each}
     </div>
