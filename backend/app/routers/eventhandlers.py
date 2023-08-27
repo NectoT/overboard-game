@@ -47,7 +47,10 @@ def playerevent(func: Callable[[int, PlayerEvent], Any]) -> Callable[[int, Playe
             break
     if event_type is None:
         # Не нашли, где событие подают
-        raise AttributeError('Event type could not be determined')
+        raise AttributeError(f'Cannot define "{func.__name__}" as player event handler: ' +
+                             'Player event type could not be identified. \nMake sure that ' +
+                             'there is a type hint for event argument, and that the ' +
+                             'hinted type inherits PlayerEvent')
 
     router_name = re.sub(r'[A-Z]', r' \g<0>', event_type.__name__)
     @router.post(
