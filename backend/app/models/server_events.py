@@ -1,7 +1,5 @@
-from types import UnionType
-
 from .base_events import GameEvent, TargetedEvent
-from .game import Character, Supply, UNKNOWN, Observable
+from .game import Character, Supply, UNKNOWN, Observable, GamePhase
 
 
 # Этот класс почти идентичен Observable, я просто хочу для понятности переписать здесь докстринги
@@ -44,7 +42,7 @@ class GameStart(GameEvent):
     '''Пары [идентификатор клиента-игрока, Персонаж, который принадлежит игроку]'''
 
     def as_mongo_update(self) -> dict:
-        update: dict = {'$set': {'started': True}}
+        update: dict = {'$set': {'phase': GamePhase.Morning}}
         for client_id in self.assigned_characters:
             update['$set'][f'players.{client_id}.character'] = self.assigned_characters[client_id].dict()
         return update

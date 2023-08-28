@@ -1,5 +1,12 @@
 /** Автосгенерирован функцией generate_ts_models в модуле app.models */
 
+export enum GamePhase {
+	Lobby = 1,
+	Morning = 2,
+	Day = 3,
+	Evening = 4,
+};
+
 /** 
     Модель, отображающая состояние игры. В зависимости от `viewpoint` часть информации
     скрывается или искажается.
@@ -9,15 +16,15 @@
 export class Game {
 	observed: boolean;
 	id: number;
-	started: boolean;
 	players: { [key: string]: Player };
 	host?: string;
-	constructor(id: number, started: boolean, players: { [key: string]: Player }, observed = false, host?: string, ) {
+	phase: any;
+	constructor(id: number, players: { [key: string]: Player }, phase: any, observed = false, host?: string, ) {
 		this.observed = observed;
 		this.id = id;
-		this.started = started;
 		this.players = players;
 		this.host = host;
+		this.phase = phase;
 	}
 };
 

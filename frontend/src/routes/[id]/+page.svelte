@@ -2,8 +2,8 @@
     import type { PageData } from "./$types";
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange, Player,
-        StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships
-
+        StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships, 
+        GamePhase
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
@@ -21,7 +21,7 @@
     let enemyName: string;
     let friendName: string;
     $: {
-        if (gameInfo.started) {
+        if (gameInfo.phase !== GamePhase.Lobby) {
             let enemyId = gameInfo.players[$clientId].enemy;
             if (enemyId !== undefined) {
                 enemyName = gameInfo.players[enemyId].character!.name;
@@ -36,7 +36,7 @@
     let websocket: WebSocket;
 
     // Temp
-    let playersOnBoard = gameInfo.started;
+    let playersOnBoard = gameInfo.phase === GamePhase.Day;
     /** Показать клиенту карты с врагом и другом */
     let showFrenemies = false;
 
@@ -69,7 +69,6 @@
                 'GameStart': async (event) => {
                     startGame((event as GameStart).assigned_characters);
                     await delay(1000);
-                    playersOnBoard = true;
                 },
                 'NewRelationships': async (event) => {
                     let e = event as NewRelationships;
@@ -147,7 +146,7 @@
     }
 
     function startGame(characters: {[key: string]: Character}) {
-        gameInfo.started = true;
+        gameInfo.phase = GamePhase.Morning;
         for (const client_id in gameInfo.players) {
             gameInfo.players[client_id].character = characters[client_id];
         }
@@ -186,7 +185,7 @@
     $: isHost = gameInfo?.host === $clientId;
 </script>
 
-{#if gameInfo.started}
+{#if gameInfo.phase !== GamePhase.Lobby}
 {#if showFrenemies}
 <GamePopup buttonText="Got it" on:click={() => showFrenemies = false}>
     <svelte:fragment slot="main">

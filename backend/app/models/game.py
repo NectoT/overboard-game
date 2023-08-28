@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 
 from pydantic import BaseModel
 
@@ -164,6 +164,15 @@ class Player(Observable):
     '''Идентификатор клиента, который является врагом'''
 
 
+class GamePhase(int, Enum):
+    Lobby = auto()
+    '''Игра ещё не началась'''
+    Morning = auto()
+    '''Фаза раздачи припасов'''
+    Day = auto()
+    Evening = auto()
+
+
 class Game(Observable):
     '''
     Модель, отображающая состояние игры. В зависимости от `viewpoint` часть информации
@@ -172,10 +181,12 @@ class Game(Observable):
     #### Это всего лишь модель, само состояние игры хранится в базе данных
     '''
     id: int
-    started: bool = False
     players: dict[str, Player] = {}
     host: str = None
     '''Идентификатор игрока, который является хостом'''
+
+    phase: GamePhase = GamePhase.Lobby
+    '''Текущая фаза игры'''
 
     @staticmethod
     def with_player_view(game: 'Game | dict', client_id: str) -> 'Game':
