@@ -88,7 +88,7 @@ def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
 
 def get_game(game_id: int) -> Game:
     game_document = db['games'].find_one({'id': game_id})
-    return Game.construct(**game_document)
+    return Game(**game_document)
 
 
 @playerevent
