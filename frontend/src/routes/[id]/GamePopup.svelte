@@ -2,13 +2,16 @@
     import { fade, scale } from "svelte/transition";
     import { OnMount } from 'fractils';
 
+    /** Всё покрываемое пространство затемнено */
+    export let darkened = true;
+
     export let buttonText: string = '';
     $: showButton = buttonText !== '';
 </script>
 
 {#if $$slots.main}
 <OnMount>
-    <div class="modal" transition:fade|global={{duration: 200}}>
+    <div class="modal" class:darkened transition:fade|global={{duration: 200}}>
         <div class="main">
             <slot name="main"></slot>
         </div>
@@ -24,13 +27,16 @@
         position: absolute;
         width: 100%;
         height: 100%;
-        background-image: radial-gradient(rgba(0, 0, 0, 0.305), rgba(0, 0, 0, 0.487));
-        backdrop-filter: blur(4px);
         z-index: 1000;
 
         display: flex;
         justify-items: center;
         align-items: center;
+    }
+
+    .darkened {
+        background-image: radial-gradient(rgba(0, 0, 0, 0.305), rgba(0, 0, 0, 0.487));
+        backdrop-filter: blur(4px);
     }
 
     .main {
