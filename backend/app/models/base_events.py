@@ -37,9 +37,13 @@ class GameEvent(BaseModel):
         data['type'] = type(self).__name__
         super().__init__(**data)
 
-    def as_mongo_update(self) -> dict:
+    def as_mongo_update(self, game: Game) -> dict:
         '''
-        Возвращает словарь с update operators, которые используются для
+        События в виде обновления MongoDB
+
+        @game Состояние игры, для которой предназначается обновление
+
+        :returns: словарь с update operators, которые используются для
         обновления документа игры в MongoDB
         '''
         raise NotImplementedError

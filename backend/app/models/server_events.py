@@ -33,7 +33,7 @@ class ObservableEvent(GameEvent, Observable):
 class HostChange(GameEvent):
     new_host: str
 
-    def as_mongo_update(self) -> dict:
+    def as_mongo_update(self, game) -> dict:
         return {'$set': {'host': self.new_host}}
 
 
@@ -41,7 +41,7 @@ class GameStart(GameEvent):
     assigned_characters: dict[str, Character]
     '''Пары [идентификатор клиента-игрока, Персонаж, который принадлежит игроку]'''
 
-    def as_mongo_update(self) -> dict:
+    def as_mongo_update(self, game) -> dict:
         update: dict = {'$set': {'phase': GamePhase.Morning}}
         for client_id in self.assigned_characters:
             update['$set'][f'players.{client_id}.character'] = self.assigned_characters[client_id].dict()
@@ -55,7 +55,7 @@ class NewRelationships(TargetedEvent):
     enemy_client_id: str
     '''Идентификатор клиента, который стал врагом'''
 
-    def as_mongo_update(self) -> dict:
+    def as_mongo_update(self, game) -> dict:
         return {'$set': {
             f'players.{self.targets[0]}.friend': self.friend_client_id,
             f'players.{self.targets[0]}.enemy': self.enemy_client_id,
@@ -66,7 +66,7 @@ class NewSupplies(TargetedEvent, ObservableEvent):
     '''Клиент получил карту или карты припасов'''
     supplies: list[Supply | UNKNOWN]
 
-    def as_mongo_update(self) -> dict:
+    def as_mongo_update(self, game) -> dict:
         values = []
         for supply in self.supplies:
             values.append(supply.dict())

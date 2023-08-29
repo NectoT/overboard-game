@@ -94,7 +94,7 @@ def get_game(game_id: int) -> Game:
 @playerevent
 def apply_event(game_id: int, event: PlayerEvent):
     '''Применяет переданные событием изменения к игре'''
-    db['games'].update_one({'id': game_id}, event.as_mongo_update())
+    db['games'].update_one({'id': game_id}, event.as_mongo_update(get_game(game_id)))
 
 
 @playerevent
@@ -102,12 +102,12 @@ def on_player_connect(game_id, event: PlayerConnect):
     game = get_game(game_id)
 
     if event.client_id not in game.players:
-        db['games'].update_one({'id': game_id}, event.as_mongo_update())
+        apply_event(game_id, event)
 
     if (isinstance(event, PlayerConnect) and game.host is None):
         # Первый подключившийся к бесхозной игре становится её хостом
         host_event = HostChange(new_host=event.client_id)
-        db['games'].update_one({'id': game_id}, host_event.as_mongo_update())
+        apply_event(game_id, host_event)
         return [host_event]
 
 
