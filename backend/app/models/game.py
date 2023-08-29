@@ -126,7 +126,7 @@ class CharactersEnum(ModelEnum):
     '''Энумератор с шаблонами персонажей.'''
 
     LADY = Character(name="Lady", attack=4, health=4, survival_bonus=8, order=1)
-    DUKE = Character(name="Lady", attack=5, health=5, survival_bonus=7, order=2)
+    DUKE = Character(name="Duke", attack=5, health=5, survival_bonus=7, order=2)
     CAPTAIN = Character(name="Captain", attack=7, health=7, survival_bonus=5, order=3)
     CHAD = Character(name="Chad", attack=8, health=8, survival_bonus=4, order=4)
     ROWER = Character(name="Rower", attack=6, health=6, survival_bonus=6, order=5)
