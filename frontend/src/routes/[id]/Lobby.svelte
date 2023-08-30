@@ -33,8 +33,8 @@
         for (const key in players) {
             const player = { ...players[key], id: key };
 
-            if (player.name == null) {
-                player.name = "Игрок " + (i + 1);
+            if (player.name === undefined) {
+                dispatch("nameChange", {clientId: player.id, newName: "Игрок " + (i + 1)});
             }
             if (compactMode || i % 2 == 0) {
                 leftColumn.push(player);
