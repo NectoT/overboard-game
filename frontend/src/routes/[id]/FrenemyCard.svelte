@@ -15,7 +15,7 @@
 
 <div
 transition:scale
-class="card {relation === Relation.Enemy ? 'enemy' : 'friend'}"
+class="card"
 style:background-image='url({picUrl})'>
 </div>
 
