@@ -66,7 +66,7 @@ class GameManager:
         await asyncio.gather(*coroutines)
         self.websockets.clear()
 
-    async def send(self, event: GameEvent | Observable, from_player: str | None = None) -> None:
+    async def send(self, event: GameEvent | ObservableEvent, from_player: str | None = None) -> None:
         '''
         Отправляет игровое событие, всем, кому оно предназначено
 
@@ -78,17 +78,26 @@ class GameManager:
         '''
 
         ids = ()
-        if event.targets == EventTargets.All:
-            ids = set(self.websockets.keys())
-            if from_player is not None:
-                ids.remove(from_player)
-        elif event.targets == EventTargets.Server:
-            pass
-        elif isinstance(event, ObservableEvent) and event.observed:
+        if isinstance(event, ObservableEvent) and event.observed:
             # Это событие с точки зрения наблюдателя, значит надо посылать всем, кто не в targets
-            ids = set(self.websockets.keys()).difference(set(event.targets))
+            if event.targets == EventTargets.All:
+                pass  # Это событие предназначалось всем, все о нём уже знают
+            elif event.targets == EventTargets.Server:
+                ids = set(self.websockets.keys())
+                # from_player не должен быть None, ведь на сервер посылает событие игрок
+                ids.remove(from_player)
+            else:
+                ids = set(self.websockets.keys()).difference(set(event.targets))
         else:
-            ids = event.targets
+            # Это обычное событие
+            if event.targets == EventTargets.All:
+                ids = set(self.websockets.keys())
+                if from_player is not None:
+                    ids.remove(from_player)
+            elif event.targets == EventTargets.Server:
+                pass  # Событие предназначалось только для сервера, никому пересылать не надо
+            else:
+                ids = event.targets
 
         coroutines = []
         for client_id in ids:

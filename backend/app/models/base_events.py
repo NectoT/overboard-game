@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, validator
 
-from .game import Game
+from .game import Game, Observable
 from .ts_transpilers import model_to_ts_class
 
 
@@ -115,3 +115,31 @@ class PlayerEvent(GameEvent):
 
         event = player_events[model['type']](**model)
         return event
+
+
+# Этот класс почти идентичен Observable, я просто хочу для понятности переписать здесь докстринги
+class ObservableEvent(GameEvent, Observable):
+    '''
+    Событие, отправленное только некоторым игрокам или серверу, но видное всем.
+
+    Информация, которая может быть невидна, помечается дополнительным типом `UNKNOWN`.
+
+    ### Пример
+    Игрок А получает карту припаса. Игроки Б и В не знают, какую именно карту получил игрок А,
+    но видели, что у него появилась новая карта.
+    '''
+
+    def observer_viewpoint(self) -> Observable:
+        '''Возвращает событие с точки зрения наблюдателя'''
+        return super().observer_viewpoint()
+
+    @classmethod
+    def _ts_class_defaults(cls) -> dict[str, str]:
+        '''Вспомогательный метод для удобного переопределения в наследующих классах'''
+        observed_property = cls.schema()['properties']['observed']
+        fields = GameEvent._ts_class_defaults()
+        if observed_property["default"]:
+            fields['observed'] = 'true'
+        else:
+            fields['observed'] = 'false'
+        return fields

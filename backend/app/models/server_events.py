@@ -1,33 +1,5 @@
-from .base_events import GameEvent, TargetedEvent
-from .game import Character, Supply, UNKNOWN, Observable, GamePhase
-
-
-# Этот класс почти идентичен Observable, я просто хочу для понятности переписать здесь докстринги
-class ObservableEvent(GameEvent, Observable):
-    '''
-    Событие, отправленное только некоторым игрокам, но видное всем.
-
-    Информация, которая может быть невидна, помечается дополнительным типом `UNKNOWN`.
-
-    ### Пример
-    Игрок А получает карту припаса. Игроки Б и В не знают, какую именно карту получил игрок А,
-    но видели, что у него появилась новая карта.
-    '''
-
-    def observer_viewpoint(self) -> Observable:
-        '''Возвращает событие с точки зрения наблюдателя'''
-        return super().observer_viewpoint()
-
-    @classmethod
-    def _ts_class_defaults(cls) -> dict[str, str]:
-        '''Вспомогательный метод для удобного переопределения в наследующих классах'''
-        observed_property = cls.schema()['properties']['observed']
-        fields = GameEvent._ts_class_defaults()
-        if observed_property["default"]:
-            fields['observed'] = 'true'
-        else:
-            fields['observed'] = 'false'
-        return fields
+from .base_events import GameEvent, TargetedEvent, ObservableEvent
+from .game import *
 
 
 class HostChange(GameEvent):
