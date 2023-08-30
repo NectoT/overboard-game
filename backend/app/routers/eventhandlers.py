@@ -111,6 +111,16 @@ def on_player_connect(game_id, event: PlayerConnect):
         return [host_event]
 
 
+def create_supply_stash(game_id: int) -> None:
+    '''Создаёт утренние припасы и добавляет их в игру в базе данных'''
+    game = get_game(game_id)
+    supplies: list[Supply] = random.choices([e.value for e in SuppliesEnum], k=len(game.players))
+    dict_supplies: list[dict] = [supply.dict() for supply in supplies]
+    db['games'].update_one({'id': game_id}, {
+        '$push': {'supply_stash': {'$each': dict_supplies}}
+    })
+
+
 @playerevent
 def start_game(game_id, event: StartRequest):
     game = get_game(game_id)
@@ -150,4 +160,40 @@ def start_game(game_id, event: StartRequest):
         apply_event(game_id, event)
         responses.append(event)
 
+    create_supply_stash(game_id)
+    game = get_game(game_id)
+
+    # Показываем утренние припасы самому первому игроку
+    event = SupplyShowcase(targets=[game.next_stash_taker()], supply_stash=game.supply_stash)
+    apply_event(game_id, event)
+    responses.append(event)
+
     return responses
+
+
+@playerevent
+def take_supply(game_id: int, event: TakeSupply):
+    game = get_game(game_id)
+
+    if game.stash_taker != event.client_id:
+        raise HTTPException(403, f"Client {event.client_id} cannot take supplies from supply " +
+                            "stash: It is not his turn yet")
+
+    apply_event(game_id, event)
+
+    game = get_game(game_id)
+
+    next_taker_id = game.next_stash_taker()
+
+    if next_taker_id is None:
+        # Записываем, что больше не осталось игроков, которым нужно дать припас
+        db['games'].update_one({'id': game_id}, {'$set': {'stash_taker': None}})
+
+        # Переходим на день
+        response = PhaseChange(new_phase=GamePhase.Day)
+        apply_event(game_id, response)
+        return [response]
+    else:
+        response = SupplyShowcase(targets=[next_taker_id], supply_stash=game.supply_stash)
+        apply_event(game_id, response)
+        return [response]

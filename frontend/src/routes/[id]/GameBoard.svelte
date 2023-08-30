@@ -1,12 +1,13 @@
 <script lang="ts">
-    import type { Game, Player, PlayerConnect } from "$lib/gametypes";
+    import { GamePhase, type Game, type Player, type PlayerConnect } from "$lib/gametypes";
     import CharacterCard, { crossfadeDuration } from "./CharacterCard.svelte";
-    import { onMount, tick } from "svelte";
     import { flip } from "svelte/animate";
     import PlayerInfo from "./PlayerInfo.svelte";
     import PlayerCorner from "./PlayerCorner.svelte";
     import { clientId } from "./stores";
     import { Relation } from "$lib/constants";
+    import { fly } from "svelte/transition";
+    import { OnMount } from "fractils";
 
     export let gameInfo: Game;
 
@@ -50,32 +51,26 @@
     ).sort((a, b) => {return a.order - b.order}); // Ну выглядит так себе, но зато в одну строку
 
     /** Должны ли карточки с игроками находиться на поле */
-    export let playersOnBoard = true;
+    let playersOnBoard = gameInfo.phase === GamePhase.Day;
 
-    // onMount(async () => {
-    //     await tick();
-
-    //     playersOnBoard = true;
-    // })
-
-    // onMount(() => setTimeout(() => {
-    //     playersOnBoard = true;
-    //     gameInfo.players[Object.keys(gameInfo.players)[0]].character!.order = -2;
-    //     gameInfo = gameInfo;
-    // }, 500));
+    let stash: Element | null = null;
 </script>
 
 <div id="outer-container">
     <div id="other-players">
         {#each players as player (player.id)}
         {#if player.id !== $clientId}
-        <PlayerInfo player={player} relation={relations[player.id]}></PlayerInfo>
+        <PlayerInfo
+        player={player}
+        relation={relations[player.id]}
+        thinking={gameInfo.stash_taker === player.id}
+        stash={stash}>
+        </PlayerInfo>
         {/if}
         {/each}
     </div>
 
     <div id="middle">
-
         {#if playersOnBoard}
         <div id="character-display">
             {#each characters as character (character.name)}
@@ -97,6 +92,27 @@
             {/each}
         </div>
         {/if}
+
+        {#if gameInfo.phase === GamePhase.Morning}
+        <!-- Куча припасов -->
+        <OnMount>
+            <div
+            bind:this={stash}
+            id="supply-stash"
+            out:fly|global={{x: 1000}}
+            on:outroend={() => playersOnBoard=true}>
+                <div class="item suitcase" in:fly={{y: -1000, delay: 30}}></div>
+                <div class="item medkit" in:fly={{y: -1000}}></div>
+                <div class="item basket" in:fly={{y: -1000, delay: 60}}></div>
+                <div class="dust">
+                    <div class="l a"></div>
+                    <div class="l b"></div>
+                    <div class="r c"></div>
+                    <div class="r d"></div>
+                </div>
+            </div>
+        </OnMount>
+        {/if}
     </div>
 
 
@@ -107,6 +123,10 @@
 </div>
 
 <style>
+    #middle {
+        overflow-x: clip;
+    }
+
     #outer-container {
         display: flex;
         flex-direction: column;
@@ -151,5 +171,134 @@
         background-image: url('backgrounds/seagulls.png');
         background-position: center;
         background-size: contain;
+    }
+
+    #supply-stash {
+        position: relative;
+        width: 250px;
+        aspect-ratio: 1 / 1;
+
+        /* background-image: url('backgrounds/supplies2_no_flask.png');
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat; */
+
+        filter: drop-shadow(-0px 4px 8px black);
+
+        margin: auto;
+        margin-top: 100px;
+    }
+
+    #supply-stash .item {
+        position: absolute;
+
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    #supply-stash .item.medkit {
+        width: 80%;
+        aspect-ratio: 1 / 1;
+
+        background-image: url('backgrounds/medkit.png');
+
+        left: -18%;
+    }
+
+    #supply-stash .item.suitcase {
+        width: 90%;
+        aspect-ratio: 1 / 1;
+
+        background-image: url('backgrounds/suitcase.png');
+        right: -18%;
+    }
+
+    #supply-stash .item.basket {
+        width: 60%;
+        aspect-ratio: 1 / 1;
+
+        background-image: url('backgrounds/basket.png');
+        bottom: 0px;
+        left: 0px;
+        right: -18%;
+        margin: auto;
+    }
+
+    @keyframes dust {
+        0% {
+            filter: opacity(0);
+            transform: translateX(0%) scale(0);
+        }
+
+        10% {
+            filter: opacity(1) drop-shadow(-2px 2px 30px rgba(0, 0, 0, 0.563));
+            transform: translateX(calc(var(--max-offset) / 5)) scale(1);
+        }
+
+        80% {
+            filter: opacity(1) drop-shadow(-2px 2px 30px rgba(0, 0, 0, 0.563));
+        }
+
+        100% {
+            filter: opacity(0) drop-shadow(-2px 2px 30px rgba(0, 0, 0, 0.563));
+            transform: translateX(var(--max-offset));
+        }
+    }
+
+    .dust * {
+        position: absolute;
+        width: 35%;
+        aspect-ratio: 1 / 1;
+
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+
+        bottom: 0;
+        filter: opacity(0);
+    }
+
+    .dust * {
+        animation-timing-function: ease-out;
+        animation-duration: 1.5s;
+        animation-iteration-count: 1;
+        animation-delay: 210ms;
+        animation-name: dust;
+    }
+
+    .dust .l {
+        --max-offset: -50%;
+        transform-origin: bottom right;
+    }
+
+    .dust .r {
+        --max-offset: 50%;
+        transform-origin: bottom left;
+    }
+
+    .dust .a {
+        background-image: url('dust/cloud1.png');
+    }
+
+    .dust .b {
+        background-image: url('dust/cloud3.png');
+        bottom: -10%;
+        left: 0;
+        right: 0;
+        margin: auto;
+    }
+
+    .dust .c {
+        right: 0;
+        background-image: url('dust/cloud2.png');
+    }
+
+    .dust .d {
+        bottom: -10%;
+        left: 0;
+        right: 0;
+        margin: auto;
+        background-image: url('dust/cloud7.png');
     }
 </style>

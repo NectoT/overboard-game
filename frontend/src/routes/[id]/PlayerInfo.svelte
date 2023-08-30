@@ -3,9 +3,30 @@
     import type { Player } from "$lib/gametypes";
     import { backOut } from "svelte/easing";
     import { scale } from "svelte/transition";
+    import ThinkBubble from "./ThinkBubble.svelte";
+    import SupplyCard from "./SupplyCard.svelte";
+    import { OnMount } from "fractils";
+    import { flyFromNode } from "$lib/transitions";
 
     export let player: Player;
     export let relation: Relation = Relation.Neutral;
+
+    /** Элемент, из которого визуально должна браться карта */
+    export let stash: Element | null = null;
+    $: knownStash = stash as Element;
+
+    let supplyAmount = player.supplies.length;
+    /** Получена карта из набора припасов и это нужно визуализировать */
+    let takingFromStash = false;
+
+    $: {
+        if (player.supplies.length > supplyAmount && stash !== null) {
+            takingFromStash = true;
+        }
+        supplyAmount = player.supplies.length;
+    }
+
+    export let thinking = false;
 </script>
 
 <div id="outer-container">
@@ -17,6 +38,9 @@
         alt="Player icon"
         class="character"
         style:background-image='url("characters/{player.character?.name}.png")'>
+        {#if thinking}
+            <ThinkBubble></ThinkBubble>
+        {/if}
     </div>
     <div class="supply-counter">
         <div class="icon">
@@ -27,7 +51,15 @@
         {/key}
     </div>
     <div class="weapon-slot">
-
+        {#if takingFromStash}
+        <OnMount>
+            <div
+            in:flyFromNode|global={{from: knownStash, dissapear: true}}
+            on:introend={() => takingFromStash = false}>
+                <SupplyCard type="back"></SupplyCard>
+            </div>
+        </OnMount>
+        {/if}
     </div>
 </div>
 

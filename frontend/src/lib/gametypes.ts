@@ -19,12 +19,32 @@ export class Game {
 	players: { [key: string]: Player };
 	host?: string;
 	phase: any;
-	constructor(id: number, players: { [key: string]: Player }, phase: any, observed = false, host?: string, ) {
+	supply_stash: Array<Supply | UNKNOWN>;
+	stash_taker?: string;
+	constructor(id: number, players: { [key: string]: Player }, phase: any, supply_stash: Array<Supply | UNKNOWN>, observed = false, host?: string, stash_taker?: string, ) {
 		this.observed = observed;
 		this.id = id;
 		this.players = players;
 		this.host = host;
 		this.phase = phase;
+		this.supply_stash = supply_stash;
+		this.stash_taker = stash_taker;
+	}
+};
+
+/** 
+    Модель, часть информации которой доступна не всем игрокам.
+
+    Информация, которая может быть недоступна, помечается дополнительным типом `UNKNOWN`.
+
+    ### Пример
+    Поле `Player.supplies` должно быть известно только тому игроку, которому принадлежат припасы,
+    поэтому модель `Player` является Observable, а тип поля - `list[Supply | UNKNOWN]`
+     */
+export class Observable {
+	observed: boolean;
+	constructor(observed = false, ) {
+		this.observed = observed;
 	}
 };
 
@@ -65,6 +85,42 @@ export class PlayerEvent {
 	}
 };
 
+/** 
+    Событие, отправленное только некоторым игрокам или серверу, но видное всем.
+
+    Информация, которая может быть невидна, помечается дополнительным типом `UNKNOWN`.
+
+    ### Пример
+    Игрок А получает карту припаса. Игроки Б и В не знают, какую именно карту получил игрок А,
+    но видели, что у него появилась новая карта.
+     */
+export class ObservableEvent {
+	observed: boolean;
+	type = 'ObservableEvent';
+	targets: Array<string> | EventTargets;
+	constructor(observed = false, targets = EventTargets.All, ) {
+		this.observed = observed;
+		this.targets = targets;
+	}
+};
+
+/** 
+    У поля есть значение в базе данных, но для модели оно неизвестно.
+
+    ### Пример
+    В игре с точки зрения игрока A у игрока Б значение supplies равно [UNKNOWN, UNKNOWN].
+    Это означает, что у игрока Б есть две карты припасов, хранящихся в базе данных, но игроку A
+    они неизвестны
+     */
+export type UNKNOWN = {
+};
+
+export type Supply = {
+	type: string;
+	strength?: number;
+	points: number;
+};
+
 export class PlayerConnect {
 	type = 'PlayerConnect';
 	targets: Array<string> | EventTargets;
@@ -98,6 +154,26 @@ export class StartRequest {
 	}
 };
 
+/** Игрок берёт припас из утреннего набора припасов */
+export class TakeSupply {
+	observed: boolean;
+	type = 'TakeSupply';
+	targets: any;
+	client_id: string;
+	supply: Supply | UNKNOWN;
+	constructor(client_id: string, supply: Supply | UNKNOWN, observed = false, targets = EventTargets.All, ) {
+		this.observed = observed;
+		this.targets = targets;
+		this.client_id = client_id;
+		this.supply = supply;
+	}
+};
+
+export type GameInfo = {
+	id: number;
+	started: boolean;
+};
+
 export type Character = {
 	name: string;
 	attack: number;
@@ -106,55 +182,20 @@ export type Character = {
 	order: number;
 };
 
-export type Supply = {
-	type: string;
-	strength?: number;
-	points: number;
-};
-
-/** 
-    У поля есть значение в базе данных, но для модели оно неизвестно.
-
-    ### Пример
-    В игре с точки зрения игрока A у игрока Б значение supplies равно [UNKNOWN, UNKNOWN].
-    Это означает, что у игрока Б есть две карты припасов, хранящихся в базе данных, но игроку A
-    они неизвестны
-     */
-export type UNKNOWN = {
-};
-
-/** 
-    Модель, часть информации которой доступна не всем игрокам.
-
-    Информация, которая может быть недоступна, помечается дополнительным типом `UNKNOWN`.
-
-    ### Пример
-    Поле `Player.supplies` должно быть известно только тому игроку, которому принадлежат припасы,
-    поэтому модель `Player` является Observable, а тип поля - `list[Supply | UNKNOWN]`
-     */
-export class Observable {
+export class Player {
 	observed: boolean;
-	constructor(observed = false, ) {
+	name?: string;
+	character?: Character;
+	supplies: Array<Supply | UNKNOWN>;
+	friend?: string;
+	enemy?: string;
+	constructor(supplies: Array<Supply | UNKNOWN>, observed = false, name?: string, character?: Character, friend?: string, enemy?: string, ) {
 		this.observed = observed;
-	}
-};
-
-/** 
-    Событие, отправленное только некоторым игрокам, но видное всем.
-
-    Информация, которая может быть невидна, помечается дополнительным типом `UNKNOWN`.
-
-    ### Пример
-    Игрок А получает карту припаса. Игроки Б и В не знают, какую именно карту получил игрок А,
-    но видели, что у него появилась новая карта.
-     */
-export class ObservableEvent {
-	observed: boolean;
-	type = 'ObservableEvent';
-	targets: Array<string> | EventTargets;
-	constructor(observed = false, targets = EventTargets.All, ) {
-		this.observed = observed;
-		this.targets = targets;
+		this.name = name;
+		this.character = character;
+		this.supplies = supplies;
+		this.friend = friend;
+		this.enemy = enemy;
 	}
 };
 
@@ -204,25 +245,26 @@ export class NewSupplies {
 	}
 };
 
-export type GameInfo = {
-	id: number;
-	started: boolean;
+export class PhaseChange {
+	type = 'PhaseChange';
+	targets: Array<string> | EventTargets;
+	new_phase: GamePhase;
+	constructor(new_phase: GamePhase, targets = EventTargets.All, ) {
+		this.targets = targets;
+		this.new_phase = new_phase;
+	}
 };
 
-export class Player {
+/** Клиенту показываются утренние припасы и предоставляется возможность выбрать оттуда припас */
+export class SupplyShowcase {
 	observed: boolean;
-	name?: string;
-	character?: Character;
-	supplies: Array<Supply | UNKNOWN>;
-	friend?: string;
-	enemy?: string;
-	constructor(supplies: Array<Supply | UNKNOWN>, observed = false, name?: string, character?: Character, friend?: string, enemy?: string, ) {
+	type = 'SupplyShowcase';
+	targets: Array<string> | EventTargets;
+	supply_stash: Array<Supply | UNKNOWN>;
+	constructor(supply_stash: Array<Supply | UNKNOWN>, observed = false, targets = EventTargets.All, ) {
 		this.observed = observed;
-		this.name = name;
-		this.character = character;
-		this.supplies = supplies;
-		this.friend = friend;
-		this.enemy = enemy;
+		this.targets = targets;
+		this.supply_stash = supply_stash;
 	}
 };
 

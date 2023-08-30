@@ -188,6 +188,32 @@ class Game(Observable):
     phase: GamePhase = GamePhase.Lobby
     '''Текущая фаза игры'''
 
+    supply_stash: list[Supply | UNKNOWN] = []
+    '''Припасы, найденные в утреннюю фазы игры и разбираемые игроками этим же утром'''
+
+    stash_taker: str = None
+    '''Идентификатор игрока, который должен взять припас из `supply_stash`'''
+
+    def next_stash_taker(self) -> str | None:
+        '''
+        Кто должен следующим взять припас из `supply_stash`
+
+        :returns: Идентификатор следующего игрока или None, если раздача припасов закончилась
+        '''
+        if self.stash_taker is None:
+            curr_place = -1
+        else:
+            curr_place = self.players[self.stash_taker].character.order
+        next_place = 100000
+        next_taker = None
+        for id in self.players:
+            player_place = self.players[id].character.order
+            if player_place > curr_place and player_place < next_place:
+                next_place = player_place
+                next_taker = id
+
+        return next_taker
+
     @staticmethod
     def with_player_view(game: 'Game | dict', client_id: str) -> 'Game':
         '''
@@ -196,10 +222,13 @@ class Game(Observable):
         @game: Состояние игры.
         '''
         if isinstance(game, dict):
-            game = Game.construct(**game)
+            game = Game(**game)
 
         new_game: Game = game.observer_viewpoint()
         new_game.players[client_id] = game.players[client_id]
+
+        if client_id == game.stash_taker:
+            new_game.supply_stash = list(game.supply_stash)
 
         return new_game
 

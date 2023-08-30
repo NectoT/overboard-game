@@ -2,8 +2,8 @@
     import type { PageData } from "./$types";
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange, Player,
-        StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships, 
-        GamePhase
+        StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships,
+        GamePhase, SupplyShowcase, TakeSupply, PhaseChange
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
@@ -13,6 +13,8 @@
     import { clientId } from "./stores";
     import GamePopup from "./GamePopup.svelte";
     import FrenemyCard from "./FrenemyCard.svelte";
+    import SupplyCard from "./SupplyCard.svelte";
+    import { known } from "$lib/utils";
 
     export let data: PageData;
     let gameInfo = data.game;
@@ -35,10 +37,19 @@
 
     let websocket: WebSocket;
 
-    // Temp
-    let playersOnBoard = gameInfo.phase === GamePhase.Day;
-    /** Показать клиенту карты с врагом и другом */
-    let showFrenemies = false;
+    enum popup {
+        /** GamePopup не используется */
+        None,
+        /** Показываются друг и враг клиента */
+        Frenemies,
+        /** Показываются утренние припасы */
+        SupplyStash
+    }
+
+    let popupMode = popup.None;
+    if (gameInfo.stash_taker === $clientId) {
+        popupMode = popup.SupplyStash;
+    }
 
     async function delay(ms: number) {
         await new Promise(res => setTimeout(res, 1000));
@@ -68,7 +79,7 @@
                 },
                 'GameStart': async (event) => {
                     startGame((event as GameStart).assigned_characters);
-                    await delay(1000);
+                    // await delay(1000);
                 },
                 'NewRelationships': async (event) => {
                     let e = event as NewRelationships;
@@ -79,9 +90,30 @@
                     if (e.observed) {
                         otherReceiveSupplies((event.targets as string[])[0], e.supplies.length);
                     } else {
-                        receiveSupplies($clientId, e.supplies as Supply[]);
+                        receiveSupplies(e.supplies as Supply[]);
                         await delay(1000);
                     }
+                },
+                'SupplyShowcase': (event) => {
+                    let e = event as SupplyShowcase;
+                    if (e.observed) {
+                        gameInfo.stash_taker = e.targets[0];
+                    } else {
+                        console.log(`${$clientId} is offered some supplies`)
+                        popupMode = popup.SupplyStash;
+                        gameInfo.supply_stash = (event as SupplyShowcase).supply_stash;
+                        gameInfo = gameInfo;
+                    }
+                },
+                'TakeSupply': async (event) => {
+                    // Всегда observed
+                    let e = event as TakeSupply;
+                    gameInfo.stash_taker = undefined;
+                    otherReceiveSupplies(e.client_id, 1);
+                },
+                'PhaseChange': (event) => {
+                    gameInfo.phase = (event as PhaseChange).new_phase;
+                    gameInfo = gameInfo;
                 }
             }
 
@@ -161,19 +193,19 @@
         gameInfo.players[$clientId].enemy = enemyClientId;
         gameInfo.players[$clientId].friend = friendClientId;
 
-        showFrenemies = true;
+        popupMode = popup.Frenemies;
 
-        // Ждём пока в модале showFrenemies не станет опять false
+        // Ждём пока в модале popupMode не станет None
         // Лучшего способа ожидания закрытия модала я не придумал
-        while (showFrenemies) {
+        while (popupMode === popup.Frenemies) {
             await delay(50);
         }
 
         gameInfo = gameInfo;
     }
 
-    function receiveSupplies(clientId: string, supplies: Array<Supply>) {
-        gameInfo.players[clientId].supplies.push(...supplies);
+    function receiveSupplies(supplies: Array<Supply>) {
+        gameInfo.players[$clientId].supplies.push(...supplies);
         gameInfo = gameInfo
     }
 
@@ -182,19 +214,35 @@
         gameInfo = gameInfo;
     }
 
+    function handleSupplyTake(supply: Supply) {
+        receiveSupplies([supply]);
+        sendEvent(new TakeSupply($clientId, supply));
+        popupMode = popup.None;
+    }
+
     $: isHost = gameInfo?.host === $clientId;
 </script>
 
 {#if gameInfo.phase !== GamePhase.Lobby}
-{#if showFrenemies}
-<GamePopup buttonText="Got it" on:click={() => showFrenemies = false}>
-    <svelte:fragment slot="main">
-        <FrenemyCard name={friendName} relation={Relation.Friend} --width={'300px'}></FrenemyCard>
-        <FrenemyCard name={enemyName} relation={Relation.Enemy} --width={'300px'}></FrenemyCard>
-    </svelte:fragment>
+
+{#if popupMode === popup.Frenemies}
+<GamePopup buttonText="Got it" on:click={() => popupMode = popup.None}>
+    <FrenemyCard name={friendName} relation={Relation.Friend} --width={'300px'}></FrenemyCard>
+    <FrenemyCard name={enemyName} relation={Relation.Enemy} --width={'300px'}></FrenemyCard>
+</GamePopup>
+{:else if popupMode === popup.SupplyStash}
+<GamePopup>
+    {#each gameInfo.supply_stash as supply}
+    <SupplyCard
+    type={known(supply).type} --width={'300px'}
+    on:click={() => handleSupplyTake(known(supply))}
+    --hoverScale={1.2}>
+    </SupplyCard>
+    {/each}
 </GamePopup>
 {/if}
-<GameBoard gameInfo={gameInfo} playersOnBoard={playersOnBoard}></GameBoard>
+
+<GameBoard gameInfo={gameInfo}></GameBoard>
 {:else}
 <Lobby
     players={gameInfo.players}

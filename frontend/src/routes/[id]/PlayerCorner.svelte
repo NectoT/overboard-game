@@ -1,8 +1,9 @@
 <script lang="ts">
     import type { Player, Supply } from "$lib/gametypes";
     import { flip } from "svelte/animate";
-    import { fly } from "svelte/transition";
     import { clientId } from "./stores";
+    import { flyFromNode } from "$lib/transitions";
+    import SupplyCard from "./SupplyCard.svelte";
 
     export let player: Player;
     $: supplies = player.supplies as Array<Supply>;
@@ -26,6 +27,24 @@
         let sign = i % 2 === 0 ? 1 : -1;
         return sign * offset + 'px';
     });
+
+    // Код скопирован из PlayerInfo, но я не знаю, как сделать так, чтобы его не нужно писать
+    // в двух местах
+
+    /** Элемент, из которого визуально должна браться карта */
+    export let stash: Element | undefined = undefined;
+    $: knownStash = stash as Element;
+
+    let supplyAmount = player.supplies.length;
+    /** Получена карта из набора припасов и это нужно визуализировать */
+    let takingFromStash = false;
+
+    $: {
+        if (player.supplies.length > supplyAmount && stash !== null) {
+            takingFromStash = true;
+        }
+        supplyAmount = player.supplies.length;
+    }
 </script>
 
 <div id="client-display">
@@ -36,14 +55,16 @@
     class:enemy={player.enemy === $clientId} class:friend={player.friend === $clientId}>
     </div>
     <div id="supplies">
-        {#each supplies as supply, i (supply.type)}
-        <div class="supply-card zoomable" in:fly={{y: -1000}} animate:flip
-        style="
-        background-image: url(supplies/flaregun.png);
-        transform: rotate({rotations[i]});
-        transform-origin: bottom center;
-        left: {offsets[i]};
-        ">
+        {#each supplies as supply, i (supply)}
+        <!-- Тут конечно трудно понять, что происходит, но вообще здесь SupplyCard с настройкой
+        трансформации оборачивается в доп контейнер, чтобы задать absolute позицию, сделать нужные
+        отступы и добавить переходы. Лучше пока не придумал -->
+        <div class="supply-card" in:flyFromNode|global={{from: stash, y: -1000}} animate:flip|global
+        style:left={offsets[i]}>
+            <SupplyCard type={supply.type}
+            --rotation={rotations[i]}
+            --transform-origin='bottom center' --hoverScale={2}>
+            </SupplyCard>
         </div>
         {/each}
 
@@ -101,18 +122,14 @@
         height: 100%;
 
         position: absolute;
-        background-size: cover;
     }
 
-    .zoomable {
-        transform: scale(1);
+    .supply-card {
         transition: transform 0.5s, z-index 0.5s cubic-bezier(0.075, 0.82, 0.165, 1);
         z-index: 1;
     }
 
-    .zoomable:hover {
-        transform-origin: bottom center;
-        transform: scale(2) !important;
+    .supply-card:hover {
         z-index: 100;
     }
 

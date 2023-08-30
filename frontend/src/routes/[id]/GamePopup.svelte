@@ -9,18 +9,16 @@
     $: showButton = buttonText !== '';
 </script>
 
-{#if $$slots.main}
 <OnMount>
     <div class="modal" class:darkened transition:fade|global={{duration: 200}}>
         <div class="main">
-            <slot name="main"></slot>
+            <slot></slot>
         </div>
         {#if showButton}
         <button on:click>{buttonText.toUpperCase()}</button>
         {/if}
     </div>
 </OnMount>
-{/if}
 
 <style>
     .modal {

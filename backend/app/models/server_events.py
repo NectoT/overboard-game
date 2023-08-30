@@ -50,3 +50,20 @@ class NewSupplies(TargetedEvent, ObservableEvent):
             update = {'$push': {array_string: {'$each': values}}}
 
         return update
+
+
+class PhaseChange(GameEvent):
+    new_phase: GamePhase
+
+    def as_mongo_update(self, game) -> dict:
+        return {'$set': {'phase': self.new_phase}}
+
+
+class SupplyShowcase(TargetedEvent, ObservableEvent):
+    '''Клиенту показываются утренние припасы и предоставляется возможность выбрать оттуда припас'''
+    supply_stash: list[Supply | UNKNOWN]
+
+    def as_mongo_update(self, game) -> dict:
+        # Спорно конечно, что изменение клиента, берущего припасы, должно быть сделано этим
+        # событием, а не в обработчике TakeSupply, ну да ладно
+        return {'$set': {'stash_taker': self.targets[0]}}

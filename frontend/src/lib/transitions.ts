@@ -1,4 +1,4 @@
-import { cubicInOut } from "svelte/easing";
+import { cubicInOut, cubicOut } from "svelte/easing";
 import type { EasingFunction } from "svelte/transition";
 
 /**
@@ -90,4 +90,56 @@ export function cardCrossfade(duration: number = 500, easing: EasingFunction = c
     }
 
     return [send, receive];
+}
+
+export interface flyFromParameters {
+    from?: Element;
+    delay?: number;
+    duration?: number;
+    easing?: EasingFunction;
+    dissapear?: boolean;
+    x?: number;
+    y?: number;
+}
+
+/** Элемент смещается в середину переданного элемента `from`, или на `x` и `y`,
+ *  если `from` не передан.
+ *
+ *  @param dissapear - Должен ли элемент исчезать в конце transition
+ * */
+export function flyFromNode(
+   node: Element,
+   {
+    from = undefined,
+    delay = 0,
+    duration = 400,
+    easing = cubicOut,
+    dissapear = false,
+    x = 0, y = 0 }: flyFromParameters = {})
+{
+    const nodeRect = node.getBoundingClientRect();
+    if (from !== undefined) {
+        const fromRect = (from as Element).getBoundingClientRect();
+        x = fromRect.left + fromRect.width / 2 - nodeRect.left - nodeRect.width / 2;
+        y = fromRect.top + fromRect.height / 2 - nodeRect.top - nodeRect.height / 2;
+    }
+
+    const style = getComputedStyle(node);
+    const transform = style.transform === 'none' ? '' : style.transform;
+
+    // return fly(node, {x: dx, y: dy});
+
+    return {
+        delay,
+        duration,
+        easing,
+        css: (t: number, u: number) => {
+            let scale = dissapear ? Math.min(1, u * 3) : 1;
+            return `
+            transform: ${transform} translateX(${x * u}px) translateY(${y * u}px) scale(${scale});
+            filter: opacity(${t});
+            transform-origin: center;
+            `
+        }
+    }
 }
