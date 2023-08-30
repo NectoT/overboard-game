@@ -5,6 +5,9 @@
     import LobbyPlayer from "./LobbyPlayer.svelte";
     import { clientId } from "./stores";
     import { createEventDispatcher } from "svelte";
+    import { cubicOut } from "svelte/easing";
+    import { page } from "$app/stores";
+    import FloatingAlert from "../FloatingAlert.svelte";
 
     export let isHost = false;
     export let players: Game["players"];
@@ -49,9 +52,19 @@
 
     $: loaderText = playerCount < minPlayers ? "Ожидание игроков" : "Ожидание хоста";
 
+    let showCopyAlert = false;
+
     function handleStartButton(event: MouseEvent) {
         event.preventDefault()
         dispatch('gameStart');
+    }
+
+    function handleCodeCopy(event: MouseEvent) {
+        navigator.clipboard.writeText($page.params.id);
+        showCopyAlert = true;
+        setTimeout(() => {
+           showCopyAlert = false;
+        }, 1000);
     }
 </script>
 
@@ -72,9 +85,20 @@
         <div id="loader-container">
             <BoatLoader text="{loaderText}"></BoatLoader>
         </div>
+        <div id="code-display">
+            <h2 class="light-text">Код игры:</h2>
+            <div id="copyable-code">
+                <h1>{$page.params.id}</h1>
+                <button on:click={handleCodeCopy}>
+                    {#if showCopyAlert}
+                    <FloatingAlert text={"Код скопирован!"}></FloatingAlert>
+                    {/if}
+                </button>
+            </div>
+        </div>
         {#if isHost && playerCount >= minPlayers}
             <a
-                transition:fade={{duration: 2000}}
+                transition:fade={{duration: 2000, easing: cubicOut}}
                 id="start-game"
                 href="#start"
                 on:click={handleStartButton}
@@ -117,6 +141,51 @@
         height: 100%;
     }
 
+    #code-display {
+        position: relative;
+        width: fit-content;
+        margin-left: auto;
+        margin-right: auto;
+        flex-grow: 1;
+    }
+
+    #code-display h2 {
+        font-size: 3em;
+        margin-top: 0px;
+        margin-bottom: 10px;
+    }
+
+    #code-display h1 {
+        font-size: 4em;
+        font-family: var(--font-family);
+        margin-top: 0px;
+    }
+
+    #copyable-code {
+        display: flex;
+        column-gap: 15px;
+    }
+
+    #copyable-code>button {
+        all: unset;
+        position: relative;
+        width: 32px;
+        height: 35px;
+
+        background-image: url('icons/thicc_files.svg');
+        background-size: 100% 100%;
+
+        transition: transform 0.05s;
+    }
+
+    #copyable-code>button:hover {
+        cursor: pointer;
+    }
+
+    #copyable-code>button:active {
+        transform: scale(0.95);
+    }
+
     #loader-container {
         position: sticky;
         bottom: 10%;
@@ -135,6 +204,7 @@
         padding: 30px 60px;
         margin-left: auto;
         margin-right: auto;
+        margin-bottom: 30px;
         border-radius: 20vmin;
     }
 
