@@ -134,6 +134,7 @@ class GameManager:
 
             except (AttributeError, TypeError, ValidationError, HTTPException) as e:
                 await self.websockets[client_id].close(reason=str(e))
+                del self.websockets[client_id]
                 raise e
             except WebSocketDisconnect:
                 del self.websockets[client_id]
