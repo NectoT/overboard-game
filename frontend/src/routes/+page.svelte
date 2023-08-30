@@ -36,7 +36,7 @@
     <input type="submit" value="Создать игру" id="create-button" class="submit-button" />
 </form>
 
-<h2 class="annotation-large">Или</h2>
+<h2 class="annotation-large light-text">Или</h2>
 
 <h1 class="title-small">Подключиться к игре:</h1>
 <form action="?/connect" method="post" use:enhance id="connect-form">
@@ -87,12 +87,9 @@
         text-align: center;
         font-size: 3rem;
         font-style: normal;
-        font-weight: 100;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-family: var(--light-font);
         margin-top: 25px;
         margin-bottom: 25px;
-
-        color: rgb(114, 114, 114);
     }
 
     form {
