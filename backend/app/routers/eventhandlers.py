@@ -111,7 +111,33 @@ def on_player_connect(game_id, event: PlayerConnect):
         return [host_event]
 
 
-def create_supply_stash(game_id: int) -> None:
+def reset_turn_order(game_id: int):
+    '''Заново создаёт очередь ходов игроков и записывает изменение в базе данных'''
+    game = get_game(game_id)
+    turn_queue = sorted(game.players.keys(), key=lambda id: game.players[id].character.order)
+    db['games'].update_one({'id': game_id}, {'$set': {'player_turn_queue': turn_queue}})
+
+    return get_game(game_id)
+
+
+def change_turn(game_id: int) -> Game:
+    '''
+    Передаёт ход другому игроку и записывает изменение в базе данных
+    '''
+    game = get_game(game_id)
+
+    new_active_player = game.player_turn_queue[0] if len(game.player_turn_queue) != 0 else None
+    print(new_active_player)
+
+    db['games'].update_one({'id': game_id}, {
+        '$pop': {'player_turn_queue': -1},
+        '$set': {'active_player': new_active_player}
+    })
+
+    return get_game(game_id)
+
+
+def create_supply_stash(game_id: int) -> Game:
     '''Создаёт утренние припасы и добавляет их в игру в базе данных'''
     game = get_game(game_id)
     supplies: list[Supply] = random.choices([e.value for e in SuppliesEnum], k=len(game.players))
@@ -119,6 +145,8 @@ def create_supply_stash(game_id: int) -> None:
     db['games'].update_one({'id': game_id}, {
         '$push': {'supply_stash': {'$each': dict_supplies}}
     })
+
+    return get_game(game_id)
 
 
 @playerevent
@@ -164,9 +192,10 @@ def start_game(game_id, event: StartRequest):
     game = get_game(game_id)
 
     # Показываем утренние припасы самому первому игроку
-    event = SupplyShowcase(targets=[game.next_stash_taker()], supply_stash=game.supply_stash)
-    apply_event(game_id, event)
-    responses.append(event)
+    game = reset_turn_order(game_id)
+    game = change_turn(game_id)
+    responses.append(TurnChange(new_active_player=game.active_player))
+    responses.append(SupplyShowcase(targets=[game.active_player], supply_stash=game.supply_stash))
 
     return responses
 
@@ -175,25 +204,21 @@ def start_game(game_id, event: StartRequest):
 def take_supply(game_id: int, event: TakeSupply):
     game = get_game(game_id)
 
-    if game.stash_taker != event.client_id:
+    if game.active_player != event.client_id:
         raise HTTPException(403, f"Client {event.client_id} cannot take supplies from supply " +
                             "stash: It is not his turn yet")
 
     apply_event(game_id, event)
 
-    game = get_game(game_id)
+    game = change_turn(game_id)
 
-    next_taker_id = game.next_stash_taker()
-
-    if next_taker_id is None:
-        # Записываем, что больше не осталось игроков, которым нужно дать припас
-        db['games'].update_one({'id': game_id}, {'$set': {'stash_taker': None}})
-
+    if game.active_player is None:
         # Переходим на день
         response = PhaseChange(new_phase=GamePhase.Day)
         apply_event(game_id, response)
         return [response]
     else:
-        response = SupplyShowcase(targets=[next_taker_id], supply_stash=game.supply_stash)
-        apply_event(game_id, response)
-        return [response]
+        return [
+            TurnChange(new_active_player=game.active_player),
+            SupplyShowcase(targets=[game.active_player], supply_stash=game.supply_stash)
+        ]

@@ -3,7 +3,7 @@
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange, Player,
         StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships,
-        GamePhase, SupplyShowcase, TakeSupply, PhaseChange
+        GamePhase, SupplyShowcase, TakeSupply, PhaseChange, TurnChange
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
@@ -47,7 +47,7 @@
     }
 
     let popupMode = popup.None;
-    if (gameInfo.stash_taker === $clientId) {
+    if (gameInfo.active_player === $clientId) {
         popupMode = popup.SupplyStash;
     }
 
@@ -96,9 +96,7 @@
                 },
                 'SupplyShowcase': (event) => {
                     let e = event as SupplyShowcase;
-                    if (e.observed) {
-                        gameInfo.stash_taker = e.targets[0];
-                    } else {
+                    if (!e.observed) {
                         console.log(`${$clientId} is offered some supplies`)
                         popupMode = popup.SupplyStash;
                         gameInfo.supply_stash = (event as SupplyShowcase).supply_stash;
@@ -108,8 +106,11 @@
                 'TakeSupply': async (event) => {
                     // Всегда observed
                     let e = event as TakeSupply;
-                    gameInfo.stash_taker = undefined;
+                    gameInfo.active_player = undefined;
                     otherReceiveSupplies(e.client_id, 1);
+                },
+                'TurnChange': (event) => {
+                    gameInfo.active_player = (event as TurnChange).new_active_player;
                 },
                 'PhaseChange': (event) => {
                     gameInfo.phase = (event as PhaseChange).new_phase;

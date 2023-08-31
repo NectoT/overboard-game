@@ -63,7 +63,7 @@
         <PlayerInfo
         player={player}
         relation={relations[player.id]}
-        thinking={gameInfo.stash_taker === player.id}
+        thinking={gameInfo.active_player === player.id}
         stash={stash}>
         </PlayerInfo>
         {/if}

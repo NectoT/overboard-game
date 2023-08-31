@@ -20,15 +20,17 @@ export class Game {
 	host?: string;
 	phase: any;
 	supply_stash: Array<Supply | UNKNOWN>;
-	stash_taker?: string;
-	constructor(id: number, players: { [key: string]: Player }, phase: any, supply_stash: Array<Supply | UNKNOWN>, observed = false, host?: string, stash_taker?: string, ) {
+	active_player?: string;
+	player_turn_queue: Array<string>;
+	constructor(id: number, players: { [key: string]: Player }, phase: any, supply_stash: Array<Supply | UNKNOWN>, player_turn_queue: Array<string>, observed = false, host?: string, active_player?: string, ) {
 		this.observed = observed;
 		this.id = id;
 		this.players = players;
 		this.host = host;
 		this.phase = phase;
 		this.supply_stash = supply_stash;
-		this.stash_taker = stash_taker;
+		this.active_player = active_player;
+		this.player_turn_queue = player_turn_queue;
 	}
 };
 
@@ -242,6 +244,16 @@ export class NewSupplies {
 		this.observed = observed;
 		this.targets = targets;
 		this.supplies = supplies;
+	}
+};
+
+export class TurnChange {
+	type = 'TurnChange';
+	targets: Array<string> | EventTargets;
+	new_active_player: string;
+	constructor(new_active_player: string, targets = EventTargets.All, ) {
+		this.targets = targets;
+		this.new_active_player = new_active_player;
 	}
 };
 
