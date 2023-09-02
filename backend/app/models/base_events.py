@@ -37,16 +37,9 @@ class GameEvent(BaseModel):
         data['type'] = type(self).__name__
         super().__init__(**data)
 
-    def as_mongo_update(self, game: Game) -> dict:
-        '''
-        События в виде обновления MongoDB
-
-        @game Состояние игры, для которой предназначается обновление
-
-        :returns: словарь с update operators, которые используются для
-        обновления документа игры в MongoDB
-        '''
-        raise NotImplementedError
+    def apply_to_game(self, game: Game):
+        '''Применяет игровое событие к игре и сохраняет изменения в базе данных'''
+        raise NotImplementedError()
 
     @classmethod
     def _ts_class_defaults(cls) -> dict[str, str]:

@@ -22,11 +22,11 @@ tag_meta = {
 }
 
 
-__event_handlers: dict[str, Callable[[int, PlayerEvent], list[GameEvent] | None]] = {}
+__event_handlers: dict[str, Callable[[Game, PlayerEvent], list[GameEvent] | None]] = {}
 '''Словарь с обработчиками событий, где ключ - это тип события в виде строки'''
 
 
-def playerevent(func: Callable[[int, PlayerEvent], Any]) -> Callable[[int, PlayerEvent], Any]:
+def playerevent(func: Callable[[Game, PlayerEvent], Any]) -> Callable[[int, PlayerEvent], Any]:
     '''
         Декоратор, маркирующий функцию как обработчик игрового события от игрока.
         Для каждого типа игрового события может быть только одна функция с этим декоратором
@@ -59,13 +59,24 @@ def playerevent(func: Callable[[int, PlayerEvent], Any]) -> Callable[[int, Playe
         description=func.__doc__,
         status_code=200
     )
-    def wrapper(game_id: int, event: event_type) -> dict:
-        func(game_id, event)
+    def fastapi_route(game_id: int, event: event_type) -> dict:
+        # Такие post-запросы можно использовать, только если все игроки пользуются post-запросами
+        # и поллингом get_game (или как там называется функция), потому что ответные события в
+        # случае пост-запроса не высылаются
+        game = Game(**db['games'].find_one({'id': game_id}))
+        responses = func(game, event)
+        game.save_changes(db['games'])
         return {}
 
-    __event_handlers[event_type.__name__] = func
+    def wrapper(game_id: int, event: GameEvent):
+        game = Game(**db['games'].find_one({'id': game_id}))
+        responses = func(game, event)
+        game.save_changes(db['games'])
+        return responses
 
-    return func
+    __event_handlers[event_type.__name__] = wrapper
+
+    return wrapper
 
 
 def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
@@ -92,66 +103,28 @@ def get_game(game_id: int) -> Game:
 
 
 @playerevent
-def apply_event(game_id: int, event: PlayerEvent):
+def apply_event(game: Game, event: PlayerEvent):
     '''Применяет переданные событием изменения к игре'''
-    db['games'].update_one({'id': game_id}, event.as_mongo_update(get_game(game_id)))
+    game.apply_event(event)
 
 
 @playerevent
-def on_player_connect(game_id, event: PlayerConnect):
-    game = get_game(game_id)
-
+def on_player_connect(game: Game, event: PlayerConnect):
     if event.client_id not in game.players:
-        apply_event(game_id, event)
+        game.apply_event(event)
 
-    if (isinstance(event, PlayerConnect) and game.host is None):
+    if isinstance(event, PlayerConnect) and game.host is None:
         # Первый подключившийся к бесхозной игре становится её хостом
         host_event = HostChange(new_host=event.client_id)
-        apply_event(game_id, host_event)
+        game.apply_event(host_event)
         return [host_event]
-
-
-def reset_turn_order(game_id: int):
-    '''Заново создаёт очередь ходов игроков и записывает изменение в базе данных'''
-    game = get_game(game_id)
-    turn_queue = sorted(game.players.keys(), key=lambda id: game.players[id].character.order)
-    db['games'].update_one({'id': game_id}, {'$set': {'player_turn_queue': turn_queue}})
-
-    return get_game(game_id)
-
-
-def change_turn(game_id: int) -> Game:
-    '''
-    Передаёт ход другому игроку и записывает изменение в базе данных
-    '''
-    game = get_game(game_id)
-
-    new_active_player = game.player_turn_queue[0] if len(game.player_turn_queue) != 0 else None
-    print(new_active_player)
-
-    db['games'].update_one({'id': game_id}, {
-        '$pop': {'player_turn_queue': -1},
-        '$set': {'active_player': new_active_player}
-    })
-
-    return get_game(game_id)
-
-
-def create_supply_stash(game_id: int) -> Game:
-    '''Создаёт утренние припасы и добавляет их в игру в базе данных'''
-    game = get_game(game_id)
-    supplies: list[Supply] = random.choices([e.value for e in SuppliesEnum], k=len(game.players))
-    dict_supplies: list[dict] = [supply.dict() for supply in supplies]
-    db['games'].update_one({'id': game_id}, {
-        '$push': {'supply_stash': {'$each': dict_supplies}}
-    })
+    return []
 
     return get_game(game_id)
 
 
 @playerevent
-def start_game(game_id, event: StartRequest):
-    game = get_game(game_id)
+def start_game(game: Game, event: StartRequest):
 
     if game.host != event.client_id:
         raise HTTPException(403, detail='Received event does not belong to game host')
@@ -166,7 +139,7 @@ def start_game(game_id, event: StartRequest):
         assigned_characters[client_id] = CharactersEnum[name].value
 
     start_event = GameStart(assigned_characters=assigned_characters)
-    apply_event(game_id, start_event)
+    game.apply_event(start_event)
     responses.append(start_event)
 
     # Назначаем друзей и врагов
@@ -177,7 +150,7 @@ def start_game(game_id, event: StartRequest):
     for client_id, friend, enemy in zip(game.players, friend_ids, enemy_ids):
         event = NewRelationships(targets=[client_id],
                                  friend_client_id=friend, enemy_client_id=enemy)
-        apply_event(game_id, event)
+        game.apply_event(event)
         responses.append(event)
 
     # Выдаём каждому по припасу
@@ -185,15 +158,14 @@ def start_game(game_id, event: StartRequest):
     for name, client_id in zip(supply_enum_names, game.players):
         supply = SuppliesEnum[name].value
         event = NewSupplies(targets=[client_id], supplies=[supply])
-        apply_event(game_id, event)
+        game.apply_event(event)
         responses.append(event)
 
-    create_supply_stash(game_id)
-    game = get_game(game_id)
 
-    # Показываем утренние припасы самому первому игроку
-    game = reset_turn_order(game_id)
-    game = change_turn(game_id)
+    # Утренняя подготовка
+    game.create_supply_stash()
+    game.reset_turn_order()
+    game.change_turn()
     responses.append(TurnChange(new_active_player=game.active_player))
     responses.append(SupplyShowcase(targets=[game.active_player], supply_stash=game.supply_stash))
 
@@ -201,21 +173,19 @@ def start_game(game_id, event: StartRequest):
 
 
 @playerevent
-def take_supply(game_id: int, event: TakeSupply):
-    game = get_game(game_id)
-
+def take_supply(game: Game, event: TakeSupply):
     if game.active_player != event.client_id:
         raise HTTPException(403, f"Client {event.client_id} cannot take supplies from supply " +
                             "stash: It is not his turn yet")
 
-    apply_event(game_id, event)
+    game.apply_event(event)
 
-    game = change_turn(game_id)
+    game.change_turn()
 
     if game.active_player is None:
         # Переходим на день
         response = PhaseChange(new_phase=GamePhase.Day)
-        apply_event(game_id, response)
+        game.apply_event(response)
         return [response]
     else:
         return [

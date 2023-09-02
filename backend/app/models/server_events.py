@@ -5,19 +5,18 @@ from .game import *
 class HostChange(GameEvent):
     new_host: str
 
-    def as_mongo_update(self, game) -> dict:
-        return {'$set': {'host': self.new_host}}
+    def apply_to_game(self, game) -> dict:
+        game.host = self.new_host
 
 
 class GameStart(GameEvent):
     assigned_characters: dict[str, Character]
     '''Пары [идентификатор клиента-игрока, Персонаж, который принадлежит игроку]'''
 
-    def as_mongo_update(self, game) -> dict:
-        update: dict = {'$set': {'phase': GamePhase.Morning}}
-        for client_id in self.assigned_characters:
-            update['$set'][f'players.{client_id}.character'] = self.assigned_characters[client_id].dict()
-        return update
+    def apply_to_game(self, game) -> dict:
+        game.phase = GamePhase.Morning
+        for id in self.assigned_characters:
+            game.players[id].character = self.assigned_characters[id]
 
 
 class NewRelationships(TargetedEvent):
@@ -27,29 +26,17 @@ class NewRelationships(TargetedEvent):
     enemy_client_id: str
     '''Идентификатор клиента, который стал врагом'''
 
-    def as_mongo_update(self, game) -> dict:
-        return {'$set': {
-            f'players.{self.targets[0]}.friend': self.friend_client_id,
-            f'players.{self.targets[0]}.enemy': self.enemy_client_id,
-        }}
+    def apply_to_game(self, game) -> dict:
+        game.players[self.targets[0]].friend = self.friend_client_id
+        game.players[self.targets[0]].enemy = self.enemy_client_id
 
 
 class NewSupplies(TargetedEvent, ObservableEvent):
     '''Клиент получил карту или карты припасов'''
     supplies: list[Supply | UNKNOWN]
 
-    def as_mongo_update(self, game) -> dict:
-        values = []
-        for supply in self.supplies:
-            values.append(supply.dict())
-
-        array_string = f'players.{self.targets[0]}.supplies'
-        if len(values) == 1:
-            update = {'$push': {array_string: values[0]}}
-        else:
-            update = {'$push': {array_string: {'$each': values}}}
-
-        return update
+    def apply_to_game(self, game):
+        game.players[self.targets[0]].supplies += self.supplies
 
 
 class TurnChange(GameEvent):
@@ -60,8 +47,8 @@ class TurnChange(GameEvent):
 class PhaseChange(GameEvent):
     new_phase: GamePhase
 
-    def as_mongo_update(self, game) -> dict:
-        return {'$set': {'phase': self.new_phase}}
+    def apply_to_game(self, game):
+        game.phase = self.new_phase
 
 
 class SupplyShowcase(TargetedEvent, ObservableEvent):

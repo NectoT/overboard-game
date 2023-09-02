@@ -1,8 +1,14 @@
+import random
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+from pymongo.collection import Collection
 
 from .ts_transpilers import model_to_ts_class
+
+if TYPE_CHECKING:
+    from .base_events import GameEvent
 
 
 class ModelEnum(Enum):
@@ -198,6 +204,42 @@ class Game(Observable):
 
     player_turn_queue: list[str] = []
     '''Очередь игроков, ждущих свой ход в текущей фазе'''
+
+    def apply_event(self, event: 'GameEvent'):
+        '''Применяет переданные событием изменения к игре'''
+        event.apply_to_game(self)
+
+    def reset_turn_order(self):
+        '''Заново создаёт очередь ходов игроков и сохраняет изменения в базе данных'''
+        self.player_turn_queue = sorted(
+            self.players.keys(), key=lambda id: self.players[id].character.order)
+
+    def change_turn(self):
+        '''
+        Передаёт ход другому игроку и записывает изменение в базе данных
+        '''
+        if len(self.player_turn_queue) != 0:
+            self.active_player = self.player_turn_queue.pop(0)
+        else:
+            self.active_player = None
+
+    def create_supply_stash(self):
+        '''Создаёт утренние припасы и добавляет их в игру в базе данных'''
+        self.supply_stash: list[Supply] = random.choices(
+            [e.value for e in SuppliesEnum], k=len(self.players))
+
+    def save_changes(self, mongo_collection: Collection):
+        if self.observed:
+            raise AttributeError('Cannot save game from observer viewpoint')
+
+        curr_document = mongo_collection.find_one({'id': self.id})
+        model_dict = self.dict()
+
+        changes = {}
+        for name in model_dict:
+            if curr_document[name] != model_dict[name]:
+                changes[name] = model_dict[name]
+        mongo_collection.update_one({'id': self.id}, {'$set': changes})
 
     @staticmethod
     def with_player_view(game: 'Game | dict', client_id: str) -> 'Game':
