@@ -5,6 +5,8 @@ from pydantic import BaseModel
 def _get_property_type(property: dict) -> str:
     type_conversion = {'integer': 'number'}
 
+    if 'enum' in property and property['type'] in ['string', 'integer']:
+        return ' | '.join([el.__repr__() for el in property['enum']])
     if 'anyOf' in property:
         return ' | '.join([_get_property_type(prop) for prop in property['anyOf']])
     if '$ref' in property:
@@ -78,8 +80,19 @@ def model_to_ts_class(model, default_fields: dict[str, str] = {},
 
             class_body += f'\t{name}{required_char}: {property_type};\n'
 
+            basic_types = ['integer', 'boolean', 'number', 'string']
+
             if name in default_fields and 'default' in property:
+                # Записываем заранее переданные дефолтные значения
                 arg = f'{name} = {default_fields[name]}, '
+            elif property_type in basic_types and 'default' in property:
+                # Записываем дефолтные значения для простых типов
+                value = ''
+                if property_type == 'boolean':
+                    value = 'true' if property['default'] == True else 'false'
+                else:
+                    value = property['default'].__repr__()
+                arg = f'{name} = {value}, '
             else:
                 arg = f'{name}{required_char}: {property_type}, '
 
