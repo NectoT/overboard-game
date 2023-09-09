@@ -69,10 +69,10 @@ class TargetedEvent(GameEvent):
     Идентичен `GameEvent`, за исключением проверки `targets`
     '''
 
-    @validator('targets')
+    @validator('targets', always=True)
     def target_is_single(cls, value) -> list[str]:
         if value is EventTargets or len(value) != 1:
-            raise ValueError(f'Event should target exactly one client in {cls.__class__.__name__}')
+            raise ValueError(f'Event should target exactly one client in {cls.schema()["title"]}')
         return value
 
 
