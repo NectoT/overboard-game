@@ -79,9 +79,7 @@ def game_info(game_id: int) -> GameInfo:
     if document is None:
         raise HTTPException(404, detail=f"Game with {game_id} id was not found")
 
-    game: Game = Game(**document)
-
-    return game
+    return GameInfo(**document)
 
 
 @app.get('/{game_id}')
