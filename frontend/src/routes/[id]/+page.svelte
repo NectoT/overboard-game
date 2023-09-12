@@ -3,18 +3,19 @@
     import {
         PlayerConnect, GameEvent, PlayerEvent, HostChange, NameChange, Player,
         StartRequest, type Character, GameStart, NewSupplies, type Supply, NewRelationships,
-        GamePhase, SupplyShowcase, TakeSupply, PhaseChange, TurnChange
+        GamePhase, SupplyShowcase, TakeSupply, PhaseChange, TurnChange, NavigationsOffer,
+        type Navigation, SaveNavigation
     } from "$lib/gametypes";
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
-    import { Relation, WEBSOCKET_URL } from "$lib/constants";
-    import { onMount } from "svelte";
-    import { page } from "$app/stores";
+    import { onMount, type ComponentType, type ComponentProps, SvelteComponent } from "svelte";
     import { clientId } from "./stores";
     import GamePopup from "./GamePopup.svelte";
-    import FrenemyCard from "./FrenemyCard.svelte";
-    import SupplyCard from "./SupplyCard.svelte";
-    import { known } from "$lib/utils";
+    import BoatLoader from "./BoatLoader.svelte";
+    import Frenemies from "./popup_content/Frenemies.svelte";
+    import SuppliesOffer from "./popup_content/SuppliesOffer.svelte";
+    import NavigationsChoice from "./popup_content/NavigationsChoice.svelte";
+    import { scale } from "svelte/transition";
 
     export let data: PageData;
     let gameInfo = data.game;
@@ -35,20 +36,63 @@
         }
     }
 
-    let websocket: WebSocket;
 
-    enum popup {
-        /** GamePopup не используется */
-        None,
-        /** Показываются друг и враг клиента */
-        Frenemies,
-        /** Показываются утренние припасы */
-        SupplyStash
+    /** Содержимое модального окна */
+    type Popup<T extends SvelteComponent> = {
+        component: ComponentType<T>;
+        windowProps: ComponentProps<GamePopup>;
+        /** Обработчик клика на кнопку в модальном окне */
+        onButtonClick?: (event: MouseEvent) => any;
+        componentProps: () => ComponentProps<T>;
+    };
+
+    /** Всплывающие штуки */
+    const popups = {
+        None: null,
+        Frenemies: {
+            component: Frenemies,
+            windowProps: {
+                darkened: true,
+                buttonText: "Got it",
+            },
+            onButtonClick: (event) => currPopup = null,
+            componentProps: () =>  ({
+                friendName: gameInfo.players[$clientId].friend,
+                enemyName: gameInfo.players[$clientId].friend,
+            })
+        } as Popup<Frenemies>,
+        SuppliesOffer: {
+            component: SuppliesOffer,
+            windowProps: {darkened: true, buttonText: ""},
+            componentProps: () => ({
+                supplyStash: gameInfo.supply_stash,
+                onClick: (supply) => handleSupplyTake(supply)
+            })
+        } as Popup<SuppliesOffer>,
+        NavigationsOffer: {
+            component: NavigationsChoice,
+            windowProps: {darkened: true, buttonText: "", popupTransition: scale},
+            componentProps: () => ({
+                offeredNavigations: gameInfo.offered_navigations,
+                players: gameInfo.players,
+                onClick: handleNavigationSave
+            })
+        } as Popup<NavigationsChoice>,
+        Boat: {
+            component: BoatLoader,
+            windowProps: {darkened: true, buttonText: "", popupTransition: scale},
+            componentProps: () => ({width: "75%"})
+        } as Popup<BoatLoader>
     }
 
-    let popupMode = popup.None;
+    /** Текущий режим всплывающего окна */
+    let currPopup: Popup<any> | null = popups.None;
     if (gameInfo.active_player === $clientId) {
-        popupMode = popup.SupplyStash;
+        if (gameInfo.phase === GamePhase.Morning) {
+            currPopup = popups.SuppliesOffer;
+        } else if (gameInfo.offered_navigations.length > 0) {
+            currPopup = popups.NavigationsOffer;
+        }
     }
 
     async function delay(ms: number) {
@@ -98,7 +142,7 @@
                     let e = event as SupplyShowcase;
                     if (!e.observed) {
                         console.log(`${$clientId} is offered some supplies`)
-                        popupMode = popup.SupplyStash;
+                        currPopup = popups.SuppliesOffer;
                         gameInfo.supply_stash = (event as SupplyShowcase).supply_stash;
                         gameInfo = gameInfo;
                     }
@@ -115,6 +159,23 @@
                 'PhaseChange': (event) => {
                     gameInfo.phase = (event as PhaseChange).new_phase;
                     gameInfo = gameInfo;
+                },
+                'NavigationsOffer': async (event) => {
+                    let e = event as NavigationsOffer;
+                    gameInfo.offered_navigations = e.offered_navigations;
+                    if (!e.observed) {
+                        currPopup = popups.Boat;
+                        await delay(1);
+                        currPopup = popups.NavigationsOffer;
+                    }
+                },
+                'SaveNavigation': (event) => {
+                    let e = event as SaveNavigation;
+
+                    gameInfo.offered_navigations = [];
+                    gameInfo.navigation_stash.push(e.navigation);
+                    gameInfo.navigation_stash = gameInfo.navigation_stash;
+                    gameInfo.players[e.client_id].rowed_this_turn = true;
                 }
             }
 
@@ -129,13 +190,12 @@
         lastHandler = handler();
     }
 
+    let websocket = data.websocket;
+
     onMount(() => {
-        websocket = new WebSocket(
-            WEBSOCKET_URL + '/' + $page.params['id'] + '?client_id=' + data.clientId
-        );
-        console.log("Websocket connection made");
         websocket.onopen = (event) => {
-            sendEvent(new PlayerConnect(data.clientId));
+            console.log("Websocket connection made");
+            websocket.sendEvent(new PlayerConnect(data.clientId));
             addPlayer($clientId, new Player([]));
         };
 
@@ -150,11 +210,6 @@
             console.log("Connection closed. Reason: " + event.reason);
         }
     })
-
-    function sendEvent(event: PlayerEvent) {
-        console.log("Sent " + event.type);
-        websocket.send(JSON.stringify(event));
-    }
 
     function addPlayer(id: string, player: Player) {
         if (!Object.hasOwn(gameInfo.players, id)) {
@@ -175,7 +230,7 @@
 
     function handleNameChange(event: CustomEvent<{clientId: string, newName: string}>) {
         changeName(event.detail.clientId, event.detail.newName);
-        sendEvent( new NameChange(event.detail.clientId, event.detail.newName))
+        websocket.sendEvent( new NameChange(event.detail.clientId, event.detail.newName))
     }
 
     function startGame(characters: {[key: string]: Character}) {
@@ -187,18 +242,18 @@
     }
 
     function handleStartRequest() {
-        sendEvent(new StartRequest($clientId));
+        websocket.sendEvent(new StartRequest($clientId));
     }
 
     async function setFrenemies(friendClientId: string, enemyClientId: string) {
         gameInfo.players[$clientId].enemy = enemyClientId;
         gameInfo.players[$clientId].friend = friendClientId;
 
-        popupMode = popup.Frenemies;
+        currPopup = popups.Frenemies;
 
         // Ждём пока в модале popupMode не станет None
         // Лучшего способа ожидания закрытия модала я не придумал
-        while (popupMode === popup.Frenemies) {
+        while (currPopup === popups.Frenemies) {
             await delay(50);
         }
 
@@ -217,8 +272,16 @@
 
     function handleSupplyTake(supply: Supply) {
         receiveSupplies([supply]);
-        sendEvent(new TakeSupply($clientId, supply));
-        popupMode = popup.None;
+        websocket.sendEvent(new TakeSupply($clientId, supply));
+        currPopup = popups.None;
+    }
+
+    function handleNavigationSave(navigation: Navigation) {
+        currPopup = popups.None;
+        websocket.sendEvent(new SaveNavigation($clientId, navigation));
+        gameInfo.navigation_stash.push(navigation);
+        gameInfo.players[$clientId].rowed_this_turn = true;
+        gameInfo = gameInfo;
     }
 
     $: isHost = gameInfo?.host === $clientId;
@@ -226,21 +289,10 @@
 
 {#if gameInfo.phase !== GamePhase.Lobby}
 
-{#if popupMode === popup.Frenemies}
-<GamePopup buttonText="Got it" on:click={() => popupMode = popup.None}>
-    <FrenemyCard name={friendName} relation={Relation.Friend} --width={'300px'}></FrenemyCard>
-    <FrenemyCard name={enemyName} relation={Relation.Enemy} --width={'300px'}></FrenemyCard>
-</GamePopup>
-{:else if popupMode === popup.SupplyStash}
-<GamePopup>
-    {#each gameInfo.supply_stash as supply}
-    <SupplyCard
-    type={known(supply).type} --width={'300px'}
-    on:click={() => handleSupplyTake(known(supply))}
-    --hoverScale={1.2}>
-    </SupplyCard>
-    {/each}
-</GamePopup>
+{#if currPopup !== popups.None}
+    <GamePopup {...currPopup.windowProps} on:click={currPopup.onButtonClick}>
+        <svelte:component this={currPopup.component} {...currPopup.componentProps()}/>
+    </GamePopup>
 {/if}
 
 <GameBoard gameInfo={gameInfo}></GameBoard>

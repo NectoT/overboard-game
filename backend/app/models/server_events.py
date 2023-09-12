@@ -54,3 +54,8 @@ class PhaseChange(GameEvent):
 class SupplyShowcase(TargetedEvent, ObservableEvent):
     '''Клиенту показываются утренние припасы и предоставляется возможность выбрать оттуда припас'''
     supply_stash: list[Supply | UNKNOWN]
+
+
+class NavigationsOffer(TargetedEvent, ObservableEvent):
+    '''Клиенту для выбора предоставляется набор карт навигации'''
+    offered_navigations: list[Navigation | UNKNOWN]

@@ -1,6 +1,6 @@
 import random
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel
 from pymongo.collection import Collection
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 
 class ModelEnum(Enum):
+    '''Enum, значениями которого являются pydantic модели'''
     @property
     def value(self):
         '''Возвращает копию значения, хранимого в enum'''
@@ -160,6 +161,33 @@ class SuppliesEnum(ModelEnum):
     SHARK_BAIT = Supply(type="shark_bait")
 
 
+class Navigation(BaseModel):
+    '''Карта навигации'''
+
+    bird_info: Literal['exed', 'missing', 'present']
+    '''
+    Информация о чайках.
+
+    ### Возможные значения:
+
+    - `exed` - Перечёркнутая чайка. Сыгранная карта навигации с таким значением уберёт одну из чаек
+
+    - `missing` - Чайки нет на карте навигации
+
+    - `present` - На карте навигации есть чайка - сыгранная карта навигации добавит чайку в игре
+    '''
+
+    overboard: list[str]
+    '''Список идентификаторов игроков, которые падают за борт'''
+
+    thirsty_players: list[str]
+    '''Список идентификаторов игроков, на которых накладывается жажда в любом случае'''
+
+    thirst_actions: list[Literal['row', 'fight']]
+    '''Игрок получит жажду, совершив любое действие из списка'''
+
+
+
 class Player(Observable):
     name: str = None
     character: Character = None
@@ -168,6 +196,7 @@ class Player(Observable):
     '''Идентификатор клиента, который является другом'''
     enemy: str = None
     '''Идентификатор клиента, который является врагом'''
+    rowed_this_turn: bool = False
 
 
 class GamePhase(int, Enum):
@@ -196,6 +225,12 @@ class Game(Observable):
 
     supply_stash: list[Supply | UNKNOWN] = []
     '''Припасы, найденные в утреннюю фазы игры и разбираемые игроками этим же утром'''
+
+    navigation_stash: list[Navigation | UNKNOWN] = []
+    '''Карты навигации, отложенные для выбора вечером'''
+
+    offered_navigations: list[Navigation | UNKNOWN] = []
+    '''Карты навигации, из которых активный игрок выбирает одну'''
 
     active_player: str = None
     '''
@@ -228,6 +263,43 @@ class Game(Observable):
         self.supply_stash: list[Supply] = random.choices(
             [e.value for e in SuppliesEnum], k=len(self.players))
 
+    def generate_offered_navigations(self):
+        '''Генерирует карты навигации, которые будут предложены активному игроку'''
+        self.offered_navigations = []
+        for i in range(2):
+            thirst_actions = []
+            if random.random() > 0.5:
+                thirst_actions.append('row')
+            if random.random() > 0.5:
+                thirst_actions.append('fight')
+
+            thirst_mode = random.choices(('none', 'all_except', 'only'), weights=(1, 2, 2))[0]
+            if thirst_mode == 'none':
+                thirsty_players = []
+            elif thirst_mode == 'all_except':
+                thirsty_players = list(self.players.keys())  # TEMP
+            elif thirst_mode == 'only':
+                thirsty_players = random.sample(list(self.players.keys()), k=random.randint(1, 2))
+
+            overboard_mode = random.choices(('none', 'one', 'all'), weights=(1, 10, 1))[0]
+            if overboard_mode == 'none':
+                overboard = []
+            elif overboard_mode == 'all':
+                overboard = list(self.players.keys())
+            elif overboard_mode == 'one':
+                overboard = [random.choice(list(self.players.keys()))]
+
+            bird = random.choices(('exed', 'missing', 'present'), (0.1, 5, 1))[0]
+
+            navigation = Navigation(
+                bird_info=bird,
+                overboard=overboard,
+                thirsty_players=thirsty_players,
+                thirst_actions=thirst_actions
+            )
+            self.offered_navigations.append(navigation)
+
+
     def save_changes(self, mongo_collection: Collection):
         if self.observed:
             raise AttributeError('Cannot save game from observer viewpoint')
@@ -237,7 +309,7 @@ class Game(Observable):
 
         changes = {}
         for name in model_dict:
-            if curr_document[name] != model_dict[name]:
+            if name not in curr_document or curr_document[name] != model_dict[name]:
                 changes[name] = model_dict[name]
         mongo_collection.update_one({'id': self.id}, {'$set': changes})
 
@@ -255,7 +327,9 @@ class Game(Observable):
         new_game.players[client_id] = game.players[client_id]
 
         if client_id == game.active_player:
-            new_game.supply_stash = list(game.supply_stash)
+            new_game.supply_stash = game.supply_stash
+            new_game.offered_navigations = game.offered_navigations
+            new_game.navigation_stash = game.navigation_stash
 
         return new_game
 

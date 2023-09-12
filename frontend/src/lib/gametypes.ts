@@ -20,15 +20,19 @@ export class Game {
 	host?: string;
 	phase: any;
 	supply_stash: Array<Supply | UNKNOWN>;
+	navigation_stash: Array<Navigation | UNKNOWN>;
+	offered_navigations: Array<Navigation | UNKNOWN>;
 	active_player?: string;
 	player_turn_queue: Array<string>;
-	constructor(id: number, players: { [key: string]: Player }, phase: any, supply_stash: Array<Supply | UNKNOWN>, player_turn_queue: Array<string>, observed = false, host?: string, active_player?: string, ) {
+	constructor(id: number, players: { [key: string]: Player }, phase: any, supply_stash: Array<Supply | UNKNOWN>, navigation_stash: Array<Navigation | UNKNOWN>, offered_navigations: Array<Navigation | UNKNOWN>, player_turn_queue: Array<string>, observed = false, host?: string, active_player?: string, ) {
 		this.observed = observed;
 		this.id = id;
 		this.players = players;
 		this.host = host;
 		this.phase = phase;
 		this.supply_stash = supply_stash;
+		this.navigation_stash = navigation_stash;
+		this.offered_navigations = offered_navigations;
 		this.active_player = active_player;
 		this.player_turn_queue = player_turn_queue;
 	}
@@ -117,10 +121,50 @@ export class ObservableEvent {
 export type UNKNOWN = {
 };
 
+export type GameInfo = {
+	id: number;
+	started: boolean;
+};
+
+export type Character = {
+	name: string;
+	attack: number;
+	health: number;
+	survival_bonus: number;
+	order: number;
+};
+
 export type Supply = {
 	type: string;
 	strength?: number;
 	points: number;
+};
+
+/** Карта навигации */
+export type Navigation = {
+	bird_info: 'exed' | 'missing' | 'present';
+	overboard: Array<string>;
+	thirsty_players: Array<string>;
+	thirst_actions: Array<'row' | 'fight'>;
+};
+
+export class Player {
+	observed: boolean;
+	name?: string;
+	character?: Character;
+	supplies: Array<Supply | UNKNOWN>;
+	friend?: string;
+	enemy?: string;
+	rowed_this_turn: boolean;
+	constructor(supplies: Array<Supply | UNKNOWN>, rowed_this_turn = false, observed = false, name?: string, character?: Character, friend?: string, enemy?: string, ) {
+		this.observed = observed;
+		this.name = name;
+		this.character = character;
+		this.supplies = supplies;
+		this.friend = friend;
+		this.enemy = enemy;
+		this.rowed_this_turn = rowed_this_turn;
+	}
 };
 
 export class PlayerConnect {
@@ -171,33 +215,28 @@ export class TakeSupply {
 	}
 };
 
-export type GameInfo = {
-	id: number;
-	started: boolean;
+export class NavigationRequest {
+	type = 'NavigationRequest';
+	targets: any;
+	client_id: string;
+	constructor(client_id: string, targets = EventTargets.Server, ) {
+		this.targets = targets;
+		this.client_id = client_id;
+	}
 };
 
-export type Character = {
-	name: string;
-	attack: number;
-	health: number;
-	survival_bonus: number;
-	order: number;
-};
-
-export class Player {
+/** Игрок откладывает карту навигации в колоду навигации */
+export class SaveNavigation {
 	observed: boolean;
-	name?: string;
-	character?: Character;
-	supplies: Array<Supply | UNKNOWN>;
-	friend?: string;
-	enemy?: string;
-	constructor(supplies: Array<Supply | UNKNOWN>, observed = false, name?: string, character?: Character, friend?: string, enemy?: string, ) {
+	type = 'SaveNavigation';
+	targets: any;
+	client_id: string;
+	navigation: Navigation | UNKNOWN;
+	constructor(client_id: string, navigation: Navigation | UNKNOWN, observed = false, targets = EventTargets.All, ) {
 		this.observed = observed;
-		this.name = name;
-		this.character = character;
-		this.supplies = supplies;
-		this.friend = friend;
-		this.enemy = enemy;
+		this.targets = targets;
+		this.client_id = client_id;
+		this.navigation = navigation;
 	}
 };
 
@@ -277,6 +316,19 @@ export class SupplyShowcase {
 		this.observed = observed;
 		this.targets = targets;
 		this.supply_stash = supply_stash;
+	}
+};
+
+/** Клиенту для выбора предоставляется набор карт навигации */
+export class NavigationsOffer {
+	observed: boolean;
+	type = 'NavigationsOffer';
+	targets: Array<string> | EventTargets;
+	offered_navigations: Array<Navigation | UNKNOWN>;
+	constructor(offered_navigations: Array<Navigation | UNKNOWN>, observed = false, targets = EventTargets.All, ) {
+		this.observed = observed;
+		this.targets = targets;
+		this.offered_navigations = offered_navigations;
 	}
 };
 

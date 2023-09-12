@@ -56,7 +56,7 @@ def playerevent(func: Callable[[Game, PlayerEvent], Any]) -> Callable[[int, Play
     @router.post(
         '/' + event_type.__name__.lower(),
         name=router_name,
-        description=func.__doc__,
+        description=func.__doc__ if func.__doc__ is not None else event_type.__doc__,
         status_code=200
     )
     def fastapi_route(game_id: int, event: event_type) -> dict:
@@ -186,9 +186,37 @@ def take_supply(game: Game, event: TakeSupply):
         # Переходим на день
         response = PhaseChange(new_phase=GamePhase.Day)
         game.apply_event(response)
-        return [response]
+        game.reset_turn_order()
+        game.change_turn()
+        return [response, TurnChange(new_active_player=game.active_player)]
     else:
         return [
             TurnChange(new_active_player=game.active_player),
             SupplyShowcase(targets=[game.active_player], supply_stash=game.supply_stash)
         ]
+
+
+@playerevent
+def get_navigation(game: Game, event: NavigationRequest):
+    if game.active_player != event.client_id:
+        raise HTTPException(403, f"Client {event.client_id} cannot get navigation cards: " +
+                            "it is not his turn yet")
+    if game.phase != GamePhase.Day:
+        raise HTTPException(403, "Cannot get navigation cards until Day phase arrives")
+    if len(game.offered_navigations) != 0:
+        raise HTTPException(403, f"Navigation cards are already offered to client {event.client_id}")
+    if game.players[event.client_id].rowed_this_turn:
+        raise HTTPException(403, "Client already rowed this turn")
+
+    game.generate_offered_navigations()
+
+    return [
+        NavigationsOffer(targets=[event.client_id], offered_navigations=game.offered_navigations)]
+
+
+@playerevent
+def save_navigation(game: Game, event: SaveNavigation):
+    if event.navigation in game.offered_navigations:
+        game.apply_event(event)
+    else:
+        raise HTTPException(400)

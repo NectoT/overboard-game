@@ -1,5 +1,5 @@
 import { cubicInOut, cubicOut } from "svelte/easing";
-import type { EasingFunction } from "svelte/transition";
+import type { EasingFunction, FlyParams } from "svelte/transition";
 
 /**
      * Кастомная версия функции crossfade от svelte.
@@ -92,37 +92,22 @@ export function cardCrossfade(duration: number = 500, easing: EasingFunction = c
     return [send, receive];
 }
 
-export interface flyFromParameters {
-    from?: Element;
-    delay?: number;
-    duration?: number;
-    easing?: EasingFunction;
-    dissapear?: boolean;
-    x?: number;
-    y?: number;
-}
-
-/** Элемент смещается в середину переданного элемента `from`, или на `x` и `y`,
- *  если `from` не передан.
+/** Элемент прилетает из указанных координат `x` `y`
  *
  *  @param dissapear - Должен ли элемент исчезать в конце transition
  * */
-export function flyFromNode(
+export function flyFrom(
    node: Element,
    {
-    from = undefined,
     delay = 0,
     duration = 400,
     easing = cubicOut,
     dissapear = false,
-    x = 0, y = 0 }: flyFromParameters = {})
+    x = 0, y = 0 } = {})
 {
     const nodeRect = node.getBoundingClientRect();
-    if (from !== undefined) {
-        const fromRect = (from as Element).getBoundingClientRect();
-        x = fromRect.left + fromRect.width / 2 - nodeRect.left - nodeRect.width / 2;
-        y = fromRect.top + fromRect.height / 2 - nodeRect.top - nodeRect.height / 2;
-    }
+    let dx = x - nodeRect.left; //- nodeRect.width / 2;
+    let dy = y - nodeRect.top; //- nodeRect.height / 2;
 
     const style = getComputedStyle(node);
     const transform = style.transform === 'none' ? '' : style.transform;
@@ -136,7 +121,7 @@ export function flyFromNode(
         css: (t: number, u: number) => {
             let scale = dissapear ? Math.min(1, u * 3) : 1;
             return `
-            transform: ${transform} translateX(${x * u}px) translateY(${y * u}px) scale(${scale});
+            transform: ${transform} translateX(${dx * u}px) translateY(${dy * u}px) scale(${scale});
             filter: opacity(${t});
             transform-origin: center;
             `

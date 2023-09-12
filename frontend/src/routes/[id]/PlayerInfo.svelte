@@ -2,36 +2,49 @@
     import { Relation } from "$lib/constants";
     import type { Player } from "$lib/gametypes";
     import { backOut } from "svelte/easing";
-    import { scale } from "svelte/transition";
+    import { fade, scale } from "svelte/transition";
     import ThinkBubble from "./ThinkBubble.svelte";
     import SupplyCard from "./SupplyCard.svelte";
     import { OnMount } from "fractils";
-    import { flyFromNode } from "$lib/transitions";
+    import { flyFrom } from "$lib/transitions";
+    import BoatLoader from "./BoatLoader.svelte";
 
     export let player: Player;
     export let relation: Relation = Relation.Neutral;
 
-    /** Элемент, из которого визуально должна браться карта */
-    export let stash: Element | null = null;
-    $: knownStash = stash as Element;
+    /** Откуда визуально должна браться карта */
+    export let supplyOrigin: {x: number, y: number} | null = null;
 
     let supplyAmount = player.supplies.length;
     /** Получена карта из набора припасов и это нужно визуализировать */
     let takingFromStash = false;
 
     $: {
-        if (player.supplies.length > supplyAmount && stash !== null) {
+        if (player.supplies.length > supplyAmount && supplyOrigin !== null) {
             takingFromStash = true;
         }
         supplyAmount = player.supplies.length;
     }
 
     export let thinking = false;
+
+    let portrait: Element;
+    export function getPortraitPos() {
+        const rect = portrait.getBoundingClientRect();
+        return {
+            x: rect.x,
+            y: rect.y
+        }
+    }
+
+    export let rowing = false;
+
+    $: actionEffect = rowing ? BoatLoader : null;
 </script>
 
 <div id="outer-container">
     <h2 class="name">{player.name}</h2>
-    <div class="portrait"
+    <div class="portrait" bind:this={portrait}
     class:enemy={relation === Relation.Enemy}
     class:friend={relation === Relation.Friend}>
         <img
@@ -40,6 +53,16 @@
         style:background-image='url("characters/{player.character?.name}.png")'>
         {#if thinking}
             <ThinkBubble></ThinkBubble>
+        {/if}
+        {#if player.rowed_this_turn}
+            <img class="rowed" src="icons/row.png" alt="Rowed this turn" transition:fade>
+        {/if}
+        {#if actionEffect !== null}
+        <div class="effect-container" transition:fade>
+            <div class="inner-container" transition:scale|global>
+                <svelte:component this={actionEffect}></svelte:component>
+            </div>
+        </div>
         {/if}
     </div>
     <div class="supply-counter">
@@ -54,7 +77,7 @@
         {#if takingFromStash}
         <OnMount>
             <div
-            in:flyFromNode|global={{from: knownStash, dissapear: true}}
+            in:flyFrom|global={{...supplyOrigin, dissapear: true}}
             on:introend={() => takingFromStash = false}>
                 <SupplyCard type="back"></SupplyCard>
             </div>
@@ -106,6 +129,27 @@
         background-image: radial-gradient(var(--inner-color), transparent);
         background-color: var(--neutral-color);
         transition: background-color 0.4s;
+    }
+
+    .portrait .effect-container {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        z-index: 2;
+        backdrop-filter: brightness(0.7);
+
+        height: 100%;
+        display: flex;
+        align-items: center;
+    }
+
+    .portrait .rowed {
+        width: 20%;
+        position: absolute;
+        right: 2%;
+        bottom: 2%;
+        filter: drop-shadow(2px 2px 2px grey);
     }
 
     .portrait.enemy {

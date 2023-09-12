@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
     export let text = "";
+    export let width: any = "100%";
 </script>
-<div id="outer-container">
+<div id="outer-container" style:width={width}>
     <div id="sea-container">
-        <div class="image base animated" id="sea-base"></div>
+        <div class="image base" id="sea-base"></div>
         <div class="image animated" id="sea-back"></div>
         <div class="image animated" id="sea-middle"></div>
         <div class="image animated" id="sea-boat"></div>

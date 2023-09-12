@@ -18,9 +18,21 @@
 </div>
 
 <style>
+    @font-face {
+        font-family: "Amersham";
+        src: url('fonts/Amersham_expropriated.woff2');
+    }
+
+    @font-face {
+        font-family: "Plaza Ultra";
+        src: url('fonts/Plaza_Ultra_expropriated.woff2');
+    }
+
     :global(body) {
         --font-family: Arial, Helvetica, sans-serif;
+        --game-bold-font: "Amersham", Arial, Helvetica, sans-serif;
         --light-font: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        --game-light-font: "Plaza Ultra", Tahoma, Geneva, Verdana, sans-serif;
         --enemy-color: rgb(168, 83, 83);
         --friend-color: rgb(39, 140, 191);
         margin: 0%;

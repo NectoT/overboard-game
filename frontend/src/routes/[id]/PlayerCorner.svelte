@@ -1,12 +1,19 @@
 <script lang="ts">
-    import type { Player, Supply } from "$lib/gametypes";
+    import { NavigationRequest, type Player, type Supply } from "$lib/gametypes";
     import { flip } from "svelte/animate";
     import { clientId } from "./stores";
-    import { flyFromNode } from "$lib/transitions";
+    import { flyFrom } from "$lib/transitions";
     import SupplyCard from "./SupplyCard.svelte";
+    import { page } from "$app/stores";
+    import type { WebSocketMixin } from "./+page"
+    import { fly } from "svelte/transition";
 
     export let player: Player;
     $: supplies = player.supplies as Array<Supply>;
+
+    export let actionsEnabled: boolean;
+
+    const websocket: WebSocketMixin = $page.data.websocket;
 
 
     /** максимальный поворот карты припаса в turn */
@@ -28,47 +35,59 @@
         return sign * offset + 'px';
     });
 
-    // Код скопирован из PlayerInfo, но я не знаю, как сделать так, чтобы его не нужно писать
-    // в двух местах
+    /** Откуда визуально прилетает карта припасов */
+    export let supplyOrigin: {x: number, y: number} | null = null;
 
-    /** Элемент, из которого визуально должна браться карта */
-    export let stash: Element | undefined = undefined;
-    $: knownStash = stash as Element;
+    $: flyArgs = supplyOrigin ?? {x: 0, y: -1000};
+    $: supplyTransition = (supplyOrigin !== null) ? flyFrom : fly;
 
-    let supplyAmount = player.supplies.length;
-    /** Получена карта из набора припасов и это нужно визуализировать */
-    let takingFromStash = false;
-
-    $: {
-        if (player.supplies.length > supplyAmount && stash !== null) {
-            takingFromStash = true;
+    let portrait: Element;
+    export function getPortraitPos() {
+        const rect = portrait.getBoundingClientRect();
+        return {
+            x: rect.x,
+            y: rect.y
         }
-        supplyAmount = player.supplies.length;
     }
 </script>
 
 <div id="client-display">
-    <div id="weapon-slot">
 
+    <div class="left flex">
+        <div class="spacer" style:width="40px"></div>
+        <button
+        id="row"
+        on:click={() => {websocket.sendEvent(new NavigationRequest($clientId))}}
+        disabled={!actionsEnabled || player.rowed_this_turn}
+        >
+        </button>
+        <div class="spacer" style:flex-grow={1}></div>
+        <div id="weapon-slot">
+
+        </div>
     </div>
-    <div class="portrait" style="background-image: url(characters/{player.character?.name}.png);"
+
+    <div class="portrait" bind:this={portrait}
+    style="background-image: url(characters/{player.character?.name}.png);"
     class:enemy={player.enemy === $clientId} class:friend={player.friend === $clientId}>
     </div>
-    <div id="supplies">
-        {#each supplies as supply, i (supply)}
-        <!-- Тут конечно трудно понять, что происходит, но вообще здесь SupplyCard с настройкой
-        трансформации оборачивается в доп контейнер, чтобы задать absolute позицию, сделать нужные
-        отступы и добавить переходы. Лучше пока не придумал -->
-        <div class="supply-card" in:flyFromNode|global={{from: stash, y: -1000}} animate:flip|global
-        style:left={offsets[i]}>
-            <SupplyCard type={supply.type}
-            --rotation={rotations[i]}
-            --transform-origin='bottom center' --hoverScale={2}>
-            </SupplyCard>
-        </div>
-        {/each}
 
-        <!-- <div class="background"></div> -->
+    <div class="right flex">
+        <div id="supplies">
+            {#each supplies as supply, i (supply)}
+            <!-- Тут конечно трудно понять, что происходит, но вообще здесь SupplyCard с настройкой
+            трансформации оборачивается в доп контейнер, чтобы задать absolute позицию, сделать нужные
+            отступы и добавить переходы. Лучше пока не придумал -->
+            <div class="supply-card" in:supplyTransition|global={flyArgs} animate:flip|global
+            style:left={offsets[i]}>
+                <SupplyCard type={supply.type}
+                --rotation={rotations[i]}
+                --transform-origin='bottom center' --hoverScale={2}>
+                </SupplyCard>
+            </div>
+            {/each}
+
+        </div>
     </div>
 </div>
 
@@ -79,42 +98,70 @@
         display: flex;
         width: 100%;
         height: 100%;
+        column-gap: 16%;
+    }
 
+    .flex {
+        display: flex;
         align-items: end;
-        justify-content: center;
-        column-gap: 60px;
+        width: 100%;
+        height: 92%;
+    }
+
+    .left {
+        justify-content: end;
+    }
+
+    #row {
+        --width: 100px;
+
+        width: var(--width);
+        aspect-ratio: 1 / 1;
+
+        border-radius: 100vw;
+        border-style: solid;
+        border-width: 5px;
+        background-color: rgb(128, 211, 214);
+
+        background-image: var(--grain-image), url('icons/row.png');
+        background-size: 150px, calc(var(--width) * 0.65);
+        background-position: center;
+        background-repeat: repeat, no-repeat;
+    }
+
+    button {
+        all: unset;
+    }
+
+    button:hover {
+        filter: brightness(0.8);
+    }
+
+    button:active {
+        transform: scale(0.99);
+    }
+
+    button:disabled {
+        filter: contrast(0.6);
+        border-color: grey;
     }
 
     #weapon-slot {
 
-        width: 5%;
+        width: 10%;
+        margin-left: 100px;
         /* max-width: 100px; */
         aspect-ratio: 2.2 / 3;
         background-color: aqua;
-        margin-bottom: 20px;
     }
 
     #supplies {
         position: relative;
 
-        width: 5%;
+        width: 10%;
         /* max-width: 100px; */
         aspect-ratio: 2.2 / 3;
         background-color: transparent;
-        margin-bottom: 20px;
-        /* margin-left: 50px; */
-    }
-
-    #supplies .background {
-        position: absolute;
-        width: 300%;
-        height: 100%;
-        margin-top: 50px;
-        left: 150%;
-        background-image: url('backgrounds/supplies.png');
-        background-size: contain;
-        background-position: center left;
-        background-repeat: no-repeat;
     }
 
     .supply-card {
@@ -134,11 +181,11 @@
     }
 
     .portrait {
-        /* position: absolute;
+        position: absolute;
         left: 0;
         right: 0;
         bottom: 0;
-        margin: auto; */
+        margin: auto;
 
         background-position: top center;
         background-size: cover;

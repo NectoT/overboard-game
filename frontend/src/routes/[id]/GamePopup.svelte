@@ -1,19 +1,33 @@
 <script lang="ts">
     import { fade, scale } from "svelte/transition";
     import { OnMount } from 'fractils';
+    import { beforeUpdate } from "svelte";
 
     /** Всё покрываемое пространство затемнено */
     export let darkened = true;
 
     export let buttonText: string = '';
     $: showButton = buttonText !== '';
+
+    /** transition для содержимого модального окна.
+     *
+     * Есть одна деталь: Если при смене содержимого у нового контента `popupTransition` отличается
+     * от transition предыдущего, новый контент появляется мнгновенно, без перехода.
+     */
+    export let popupTransition = fade;
+
+    let updateFlag = false;
+
+    beforeUpdate(() => updateFlag = !updateFlag)
 </script>
 
 <OnMount>
     <div class="modal" class:darkened transition:fade|global={{duration: 200}}>
-        <div class="main">
+        {#key updateFlag}
+        <div class="main" transition:popupTransition|global>
             <slot></slot>
         </div>
+        {/key}
         {#if showButton}
         <button on:click>{buttonText.toUpperCase()}</button>
         {/if}
@@ -30,15 +44,16 @@
         display: flex;
         justify-items: center;
         align-items: center;
+
+        transition: filter 0.2s ease-in-out;
     }
 
     .darkened {
-        background-image: radial-gradient(rgba(0, 0, 0, 0.305), rgba(0, 0, 0, 0.487));
-        backdrop-filter: blur(4px);
+        backdrop-filter: blur(4px) brightness(0.5);
     }
 
     .main {
-        position: relative;
+        position: absolute;
         width: fit-content;
         min-width: min(1000px, 100%);
 
@@ -46,6 +61,8 @@
         justify-content: space-around;
         align-items: center;
         column-gap: 50px;
+        left: 0;
+        right: 0;
         margin: auto;
     }
 
