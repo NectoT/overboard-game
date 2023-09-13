@@ -1,19 +1,17 @@
 from contextlib import asynccontextmanager
-import asyncio
 from typing import Annotated, Awaitable
 import random
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie, Query
+from fastapi import FastAPI, HTTPException, Cookie, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pymongo.database import Database
-from pymongo import MongoClient
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from .models import *
 from .models import tests
 from .databases import mongo_db as db
 from . import websocket_connections
 from .routers import eventhandlers
+from .utils import Token
 
 
 @asynccontextmanager
@@ -42,17 +40,32 @@ app.include_router(websocket_connections.router)
 app.include_router(eventhandlers.router)
 
 
+def game_document(game_id: int) -> dict:
+    game_document = db['games'].find_one({'id': game_id})
+    if game_document is None:
+        raise HTTPException(422, f'Cannot find a game with id {game_id}')
+
+    return game_document
+
+
+def cookie_token(token: Annotated[str | None, Cookie()] = None) -> Token:
+    return Token(token) if token is not None else None
+
+
+TokenParam = Annotated[Token | None, Depends(cookie_token)]
+
+
 @app.post('/create')
 def create_game(
     game_id: Annotated[int, Query(description="Идентификатор для новой игры")],
-    client_id: Annotated[str, Cookie(description="Идентификатор клиента-игрока, создающего игру")]
+    token: TokenParam
 ):
     '''
     Создаёт новую игру с указанным game_id.
     `game_id` должен быть уникальным, то есть не использоваться в других играх.
 
     \f
-    @client_id: Идентификатор клиента-игрока, создающего игру.
+    @token: Идентификатор клиента, создающего игру.
     '''
     if db['games'].find_one({'id': game_id}) is not None:
         raise HTTPException(400, detail=f"Game with {game_id} id already exists")
@@ -72,28 +85,33 @@ def free_id() -> UniqueId:
             return UniqueId(game_id=game_id)
 
 
-@app.get('/{game_id}/info')
-def game_info(game_id: int) -> GameInfo:
-    '''Возвращает основную информацию об игре'''
-    document = db['games'].find_one({'id': game_id})
-    if document is None:
-        raise HTTPException(404, detail=f"Game with {game_id} id was not found")
+class PlayerIdModel(BaseModel):
+    id: str
 
-    return GameInfo(**document)
+
+@app.get('/playerid')
+def player_id(token: TokenParam) -> PlayerIdModel:
+    '''Возвращает id игрока, принадлежащий клиенту с переданным токеном'''
+    return PlayerIdModel(id=token.hash())
+
+
+@app.get('/{game_id}/info')
+def game_info(game_document: Annotated[dict, Depends(game_document)]) -> GameInfo:
+    '''Возвращает основную информацию об игре'''
+
+    return GameInfo(**game_document)
 
 
 @app.get('/{game_id}')
-def game(game_id: int, client_id: Annotated[str | None, Cookie()] = None) -> Game:
+def game(game_document: Annotated[dict, Depends(game_document)], token: TokenParam) -> Game:
     '''
-    Возвращает информацию об игре, доступную клиенту с идентификатором `client_id`.
-    Если `client_id` не передаётся, то возвращается информация, доступная наблюдателям.
+    Возвращает информацию об игре, доступную клиенту с токеном-идентификатором.
+    Если токен не передаётся, то возвращается информация, доступная наблюдателям.
     '''
-    game_document = db['games'].find_one({'id': game_id})
-    if game_document is None:
-        raise HTTPException(422, f'Cannot find a game with id {game_id}')
     game = Game(**game_document)
-    if client_id is not None and client_id in game.players:
-        game = Game.with_player_view(game, client_id)
+    player_id = token.hash()
+    if player_id in game.players:
+        game = Game.with_player_view(game, player_id)
     else:
         game = Game.with_spectator_view(game)
 

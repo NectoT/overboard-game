@@ -84,10 +84,12 @@ export class TargetedEvent {
 export class PlayerEvent {
 	type = 'PlayerEvent';
 	targets: Array<string> | EventTargets;
-	client_id: string;
-	constructor(client_id: string, targets = EventTargets.All, ) {
+	client_token: string;
+	player_id?: string;
+	constructor(client_token: string, targets = EventTargets.All, player_id?: string, ) {
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 	}
 };
 
@@ -170,21 +172,25 @@ export class Player {
 export class PlayerConnect {
 	type = 'PlayerConnect';
 	targets: Array<string> | EventTargets;
-	client_id: string;
-	constructor(client_id: string, targets = EventTargets.All, ) {
+	client_token: string;
+	player_id?: string;
+	constructor(client_token: string, targets = EventTargets.All, player_id?: string, ) {
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 	}
 };
 
 export class NameChange {
 	type = 'NameChange';
 	targets: Array<string> | EventTargets;
-	client_id: string;
+	client_token: string;
+	player_id?: string;
 	new_name: string;
-	constructor(client_id: string, new_name: string, targets = EventTargets.All, ) {
+	constructor(client_token: string, new_name: string, targets = EventTargets.All, player_id?: string, ) {
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 		this.new_name = new_name;
 	}
 };
@@ -193,10 +199,12 @@ export class NameChange {
 export class StartRequest {
 	type = 'StartRequest';
 	targets: any;
-	client_id: string;
-	constructor(client_id: string, targets = EventTargets.Server, ) {
+	client_token: string;
+	player_id?: string;
+	constructor(client_token: string, targets = EventTargets.Server, player_id?: string, ) {
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 	}
 };
 
@@ -205,12 +213,14 @@ export class TakeSupply {
 	observed: boolean;
 	type = 'TakeSupply';
 	targets: any;
-	client_id: string;
+	client_token: string;
+	player_id?: string;
 	supply: Supply | UNKNOWN;
-	constructor(client_id: string, supply: Supply | UNKNOWN, observed = false, targets = EventTargets.All, ) {
+	constructor(client_token: string, supply: Supply | UNKNOWN, observed = false, targets = EventTargets.All, player_id?: string, ) {
 		this.observed = observed;
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 		this.supply = supply;
 	}
 };
@@ -218,10 +228,12 @@ export class TakeSupply {
 export class NavigationRequest {
 	type = 'NavigationRequest';
 	targets: any;
-	client_id: string;
-	constructor(client_id: string, targets = EventTargets.Server, ) {
+	client_token: string;
+	player_id?: string;
+	constructor(client_token: string, targets = EventTargets.Server, player_id?: string, ) {
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 	}
 };
 
@@ -230,12 +242,14 @@ export class SaveNavigation {
 	observed: boolean;
 	type = 'SaveNavigation';
 	targets: any;
-	client_id: string;
+	client_token: string;
+	player_id?: string;
 	navigation: Navigation | UNKNOWN;
-	constructor(client_id: string, navigation: Navigation | UNKNOWN, observed = false, targets = EventTargets.All, ) {
+	constructor(client_token: string, navigation: Navigation | UNKNOWN, observed = false, targets = EventTargets.All, player_id?: string, ) {
 		this.observed = observed;
 		this.targets = targets;
-		this.client_id = client_id;
+		this.client_token = client_token;
+		this.player_id = player_id;
 		this.navigation = navigation;
 	}
 };
@@ -264,12 +278,12 @@ export class GameStart {
 export class NewRelationships {
 	type = 'NewRelationships';
 	targets: Array<string> | EventTargets;
-	friend_client_id: string;
-	enemy_client_id: string;
-	constructor(friend_client_id: string, enemy_client_id: string, targets = EventTargets.All, ) {
+	friend_id: string;
+	enemy_id: string;
+	constructor(friend_id: string, enemy_id: string, targets = EventTargets.All, ) {
 		this.targets = targets;
-		this.friend_client_id = friend_client_id;
-		this.enemy_client_id = enemy_client_id;
+		this.friend_id = friend_id;
+		this.enemy_id = enemy_id;
 	}
 };
 

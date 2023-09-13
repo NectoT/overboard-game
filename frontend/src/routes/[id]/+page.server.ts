@@ -4,15 +4,16 @@ import type { Game } from '$lib/gametypes';
 import { BACKEND_URL } from '$lib/constants';
 
 export const load = (async ( { params, cookies } ) => {
-    let clientId = cookies.get('client_id')!;
+    let token = cookies.get('token')!;
     let response = await fetch(BACKEND_URL + '/' + params.id, {
         headers: {
-            Cookie: 'client_id=' + clientId
+            Cookie: 'token=' + token
         }
     });
     let gameData: Game = await response.json();
     return {
         game: gameData,
-        clientId: clientId
+        clientToken: token,
+        playerId: cookies.get('playerId')!
     };
 }) satisfies PageServerLoad;

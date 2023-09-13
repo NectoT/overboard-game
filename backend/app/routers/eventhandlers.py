@@ -110,23 +110,21 @@ def apply_event(game: Game, event: PlayerEvent):
 
 @playerevent
 def on_player_connect(game: Game, event: PlayerConnect):
-    if event.client_id not in game.players:
+    if event.player_id not in game.players:
         game.apply_event(event)
 
     if isinstance(event, PlayerConnect) and game.host is None:
         # Первый подключившийся к бесхозной игре становится её хостом
-        host_event = HostChange(new_host=event.client_id)
+        host_event = HostChange(new_host=event.player_id)
         game.apply_event(host_event)
         return [host_event]
     return []
-
-    return get_game(game_id)
 
 
 @playerevent
 def start_game(game: Game, event: StartRequest):
 
-    if game.host != event.client_id:
+    if game.host != event.player_id:
         raise HTTPException(403, detail='Received event does not belong to game host')
 
     responses = []
@@ -135,8 +133,8 @@ def start_game(game: Game, event: StartRequest):
     enum_names = random.sample(CharactersEnum._member_names_, k=len(game.players))
 
     assigned_characters = {}
-    for name, client_id in zip(enum_names, game.players):
-        assigned_characters[client_id] = CharactersEnum[name].value
+    for name, player_id in zip(enum_names, game.players):
+        assigned_characters[player_id] = CharactersEnum[name].value
 
     start_event = GameStart(assigned_characters=assigned_characters)
     game.apply_event(start_event)
@@ -147,17 +145,17 @@ def start_game(game: Game, event: StartRequest):
     random.shuffle(friend_ids)
     enemy_ids = list(game.players)
     random.shuffle(enemy_ids)
-    for client_id, friend, enemy in zip(game.players, friend_ids, enemy_ids):
-        event = NewRelationships(targets=[client_id],
-                                 friend_client_id=friend, enemy_client_id=enemy)
+    for player_id, friend, enemy in zip(game.players, friend_ids, enemy_ids):
+        event = NewRelationships(targets=[player_id],
+                                 friend_id=friend, enemy_id=enemy)
         game.apply_event(event)
         responses.append(event)
 
     # Выдаём каждому по припасу
     supply_enum_names = random.choices(SuppliesEnum._member_names_, k=len(game.players))
-    for name, client_id in zip(supply_enum_names, game.players):
+    for name, player_id in zip(supply_enum_names, game.players):
         supply = SuppliesEnum[name].value
-        event = NewSupplies(targets=[client_id], supplies=[supply])
+        event = NewSupplies(targets=[player_id], supplies=[supply])
         game.apply_event(event)
         responses.append(event)
 
@@ -174,8 +172,8 @@ def start_game(game: Game, event: StartRequest):
 
 @playerevent
 def take_supply(game: Game, event: TakeSupply):
-    if game.active_player != event.client_id:
-        raise HTTPException(403, f"Client {event.client_id} cannot take supplies from supply " +
+    if game.active_player != event.player_id:
+        raise HTTPException(403, f"Client {event.player_id} cannot take supplies from supply " +
                             "stash: It is not his turn yet")
 
     game.apply_event(event)
@@ -198,20 +196,20 @@ def take_supply(game: Game, event: TakeSupply):
 
 @playerevent
 def get_navigation(game: Game, event: NavigationRequest):
-    if game.active_player != event.client_id:
-        raise HTTPException(403, f"Client {event.client_id} cannot get navigation cards: " +
+    if game.active_player != event.player_id:
+        raise HTTPException(403, f"Client {event.player_id} cannot get navigation cards: " +
                             "it is not his turn yet")
     if game.phase != GamePhase.Day:
         raise HTTPException(403, "Cannot get navigation cards until Day phase arrives")
     if len(game.offered_navigations) != 0:
-        raise HTTPException(403, f"Navigation cards are already offered to client {event.client_id}")
-    if game.players[event.client_id].rowed_this_turn:
+        raise HTTPException(403, f"Navigation cards are already offered to client {event.player_id}")
+    if game.players[event.player_id].rowed_this_turn:
         raise HTTPException(403, "Client already rowed this turn")
 
     game.generate_offered_navigations()
 
     return [
-        NavigationsOffer(targets=[event.client_id], offered_navigations=game.offered_navigations)]
+        NavigationsOffer(targets=[event.player_id], offered_navigations=game.offered_navigations)]
 
 
 @playerevent

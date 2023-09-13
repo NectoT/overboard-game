@@ -20,7 +20,7 @@ export const load = (async ({params, data}) => {
     }
 
     let websocket = new WebSocketMixin(
-        WEBSOCKET_URL + '/' + params['id'] + '?client_id=' + data.clientId
+        WEBSOCKET_URL + '/' + params['id'] + '?token=' + data.clientToken
     );
     return {
         ...data,

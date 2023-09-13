@@ -53,8 +53,8 @@ export const actions: Actions = {
             headers: {
                 // Короче actions не обладают теми же куки, что и +page.svelte, поэтому надо
                 // вручную сюда вбивать куки с сайта. Почему бы не переделать эндпоинт у бэкэнда
-                // и сделать client_id не куки параметром, а чем-то ещё? Хз
-                Cookie: 'client_id=' + event.cookies.get('client_id')
+                // и сделать token не куки параметром, а чем-то ещё? Хз
+                Cookie: 'token=' + event.cookies.get('token')
             }
         })
         if (response.status == 200) {

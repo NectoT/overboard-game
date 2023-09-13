@@ -5,14 +5,14 @@ from .game import *
 class PlayerConnect(PlayerEvent):
 
     def apply_to_game(self, game):
-        game.players[self.client_id] = {}
+        game.players[self.player_id] = {}
 
 
 class NameChange(PlayerEvent):
     new_name: str
 
     def apply_to_game(self, game) -> dict:
-        game.players[self.client_id].name = self.new_name
+        game.players[self.player_id].name = self.new_name
 
 
 class StartRequest(PlayerEvent):
@@ -28,7 +28,7 @@ class TakeSupply(PlayerEvent, ObservableEvent):
     def apply_to_game(self, game) -> dict:
         game.supply_stash.remove(self.supply)
 
-        game.players[self.client_id].supplies.append(self.supply)
+        game.players[self.player_id].supplies.append(self.supply)
 
 
 class NavigationRequest(PlayerEvent):
@@ -43,4 +43,4 @@ class SaveNavigation(PlayerEvent, ObservableEvent):
     def apply_to_game(self, game: Game):
         game.navigation_stash.append(self.navigation)
         game.offered_navigations = []
-        game.players[self.client_id].rowed_this_turn = True
+        game.players[self.player_id].rowed_this_turn = True

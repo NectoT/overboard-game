@@ -3,7 +3,7 @@
     import { fade } from "svelte/transition";
     import BoatLoader from "./BoatLoader.svelte";
     import LobbyPlayer from "./LobbyPlayer.svelte";
-    import { clientId } from "./stores";
+    import { playerId } from "./stores";
     import { createEventDispatcher } from "svelte";
     import { cubicOut } from "svelte/easing";
     import { page } from "$app/stores";
@@ -13,7 +13,7 @@
     export let players: Game["players"];
 
     let dispatch = createEventDispatcher<{
-        nameChange: {clientId: string, newName: string},
+        nameChange: {newName: string},
         gameStart: null
     }>();
 
@@ -33,9 +33,6 @@
         for (const key in players) {
             const player = { ...players[key], id: key };
 
-            if (player.name === undefined) {
-                dispatch("nameChange", {clientId: player.id, newName: "Игрок " + (i + 1)});
-            }
             if (compactMode || i % 2 == 0) {
                 leftColumn.push(player);
             } else {
@@ -75,8 +72,8 @@
         {#each leftColumn as player (player.id)}
             <LobbyPlayer
                 name={player.name ?? 'Name is null' }
-                editable={$clientId === player.id}
-                on:nameChange={(e) => dispatch('nameChange', {...e.detail, clientId: player.id})}
+                editable={$playerId === player.id}
+                on:nameChange={(e) => dispatch('nameChange', {...e.detail})}
             ></LobbyPlayer>
         {/each}
     </div>
@@ -111,8 +108,8 @@
             {#each rightColumn as player (player.id)}
                 <LobbyPlayer
                     name={player.name ?? 'Name is null' }
-                    editable={$clientId === player.id}
-                    on:nameChange={(e) => dispatch('nameChange', {...e.detail, clientId: player.id})}
+                    editable={$playerId === player.id}
+                    on:nameChange={(e) => dispatch('nameChange', {...e.detail})}
                 ></LobbyPlayer>
             {/each}
         </div>

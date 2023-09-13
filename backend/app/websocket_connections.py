@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from .databases import mongo_db as db
 from .models import *
 from .routers.eventhandlers import handle_player
+from .utils import Token
 
 router = APIRouter(tags=['Websocket Connection'])
 
@@ -42,27 +43,27 @@ class GameManager:
         return manager
 
 
-    async def add(self, websocket: WebSocket, client_id: str) -> Awaitable[None]:
+    async def add(self, websocket: WebSocket, player_id: str) -> Awaitable[None]:
         '''
-        Устанавливает по переданному вебсокету соединение с клиентом с идентификатором `client_id.
+        Устанавливает по переданному вебсокету соединение с клиентом с идентификатором `player_id.
         Разрывает предыдущее соединение, если оно было.
 
         :returns: Awaitable, который завершается при отключении соединения.
         #### Если не ждать этот метод, соединение сразу прервётся
         '''
         await websocket.accept()
-        if client_id in self.websockets:
+        if player_id in self.websockets:
             reason = "Client made a new websocket connection"
-            await self.websockets[client_id].close(reason=reason)
+            await self.websockets[player_id].close(reason=reason)
 
-        self.websockets[client_id] = websocket
-        await self._handle_socket(client_id)
+        self.websockets[player_id] = websocket
+        await self._handle_socket(player_id)
 
     async def close_all(self, reason: str | None = None):
         '''Закрывает все соединения Менеджера'''
         coroutines = []
-        for client_id in self.websockets:
-            coroutines.append(self.websockets[client_id].close(reason=reason))
+        for player_id in self.websockets:
+            coroutines.append(self.websockets[player_id].close(reason=reason))
         await asyncio.gather(*coroutines)
         self.websockets.clear()
 
@@ -100,20 +101,20 @@ class GameManager:
                 ids = event.targets
 
         coroutines = []
-        for client_id in ids:
-            if client_id not in self.websockets:
+        for player_id in ids:
+            if player_id not in self.websockets:
                 continue  # Мало ли фейковых id переслали с событием
-            coroutines.append(self.websockets[client_id].send_json(event.dict()))
+            coroutines.append(self.websockets[player_id].send_json(event.dict()))
         await asyncio.gather(*coroutines)
 
-    async def _handle_socket(self, client_id: str):
+    async def _handle_socket(self, player_id: str):
         '''
-        Обрабатывает соединение с вебсокетом, привязанного к `client_id`
+        Обрабатывает соединение с вебсокетом, привязанного к `player_id`
         на момент вызова метода.
         '''
         while True:
             try:
-                json: dict = await self.websockets[client_id].receive_json()
+                json: dict = await self.websockets[player_id].receive_json()
                 event: PlayerEvent = PlayerEvent.from_dict(json)
 
                 # Сначала обрабатываем событие, чтобы не пересылать событие,
@@ -121,7 +122,7 @@ class GameManager:
                 response_events = handle_player(self.game_id, event)
 
                 # пересылаем событие всем, кому нужно
-                await self.send(event, from_player=client_id)
+                await self.send(event, from_player=player_id)
 
                 # Отсылаем ответные событие от сервера, если они есть
                 if response_events is not None:
@@ -133,26 +134,26 @@ class GameManager:
                             await self.send(event.observer_viewpoint())
 
             except (AttributeError, TypeError, ValidationError, HTTPException) as e:
-                await self.websockets[client_id].close(reason=str(e))
-                del self.websockets[client_id]
+                await self.websockets[player_id].close(reason=str(e))
+                del self.websockets[player_id]
                 raise e
             except WebSocketDisconnect:
-                del self.websockets[client_id]
+                del self.websockets[player_id]
                 break
 
 
 @router.websocket('/{game_id}')
-async def connect(game_id: int, websocket: WebSocket, client_id: Annotated[str, Query()]):
+async def connect(game_id: int, websocket: WebSocket, token: Annotated[str, Query()]):
     '''
     Подключает вебсокет от игрока к серверу.
 
     @game_id: Идентификатор игры, к которой подключается клиент
-    @client_id: Уникальный идентификатор, определяющий клиента. При разрыве предыдущего
-    вебсокета и создании нового с тем же `client_id`, сервер понимает, что новый вебсокет
+    @token: Токен, определяющий клиента. При разрыве предыдущего
+    вебсокета и создании нового с тем же токеном, сервер понимает, что новый вебсокет
     принадлежит тому же клиенту
     '''
     if game_id in GameManager.managed_games:
         manager = GameManager.managed_games[game_id]
     else:
         manager = GameManager.create(game_id)
-    await manager.add(websocket, client_id)
+    await manager.add(websocket, Token(token).hash())

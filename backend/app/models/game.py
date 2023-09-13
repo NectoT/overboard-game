@@ -314,9 +314,9 @@ class Game(Observable):
         mongo_collection.update_one({'id': self.id}, {'$set': changes})
 
     @staticmethod
-    def with_player_view(game: 'Game | dict', client_id: str) -> 'Game':
+    def with_player_view(game: 'Game | dict', player_id: str) -> 'Game':
         '''
-        Возвращает состояние игры с точки зрения игрока с идентификатором `client_id`.
+        Возвращает состояние игры с точки зрения игрока с идентификатором `player_id`.
 
         @game: Состояние игры.
         '''
@@ -324,9 +324,9 @@ class Game(Observable):
             game = Game(**game)
 
         new_game: Game = game.observer_viewpoint()
-        new_game.players[client_id] = game.players[client_id]
+        new_game.players[player_id] = game.players[player_id]
 
-        if client_id == game.active_player:
+        if player_id == game.active_player:
             new_game.supply_stash = game.supply_stash
             new_game.offered_navigations = game.offered_navigations
             new_game.navigation_stash = game.navigation_stash

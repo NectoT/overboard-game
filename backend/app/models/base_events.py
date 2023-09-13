@@ -1,9 +1,11 @@
 from enum import Enum
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 
 from .game import Game, Observable
 from .ts_transpilers import model_to_ts_class
+
+from ..utils import Token, PlayerId
 
 
 class EventTargets(str, Enum):
@@ -81,8 +83,21 @@ player_events: dict[str, type] = {}
 
 class PlayerEvent(GameEvent):
     '''Событие, инициируемое игроком.'''
-    client_id: str
-    '''Идентификатор, определяющий, какому клиенту-игроку принадлежит событие'''
+    client_token: Token = Field(exclude=True)
+    '''
+    Токен, определяющий клиента.
+    #### Не пересылается сервером другим игрокам
+    '''
+    player_id: PlayerId = None
+    '''Идентификатор, определяющий, какому игроку принадлежит событие'''
+
+    @validator('player_id', always=True)
+    def player_id_setup(cls, value, values):
+        client_token = Token(values['client_token'])
+        if client_token is not None:
+            return client_token.hash()
+        return value
+
 
     def __init_subclass__(cls) -> None:
         player_events[cls.__name__] = cls

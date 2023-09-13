@@ -9,7 +9,7 @@
     import Lobby from "./Lobby.svelte";
     import GameBoard from "./GameBoard.svelte";
     import { onMount, type ComponentType, type ComponentProps, SvelteComponent } from "svelte";
-    import { clientId } from "./stores";
+    import { clientToken, playerId } from "./stores";
     import GamePopup from "./GamePopup.svelte";
     import BoatLoader from "./BoatLoader.svelte";
     import Frenemies from "./popup_content/Frenemies.svelte";
@@ -19,17 +19,18 @@
 
     export let data: PageData;
     let gameInfo = data.game;
-    clientId.set(data.clientId)
+    clientToken.set(data.clientToken);
+    playerId.set(data.playerId);
 
     let enemyName: string;
     let friendName: string;
     $: {
         if (gameInfo.phase !== GamePhase.Lobby) {
-            let enemyId = gameInfo.players[$clientId].enemy;
+            let enemyId = gameInfo.players[$playerId].enemy;
             if (enemyId !== undefined) {
                 enemyName = gameInfo.players[enemyId].character!.name;
             }
-            let friendId = gameInfo.players[$clientId].friend;
+            let friendId = gameInfo.players[$playerId].friend;
             if (friendId !== undefined) {
                 friendName = gameInfo.players[friendId].character!.name;
             }
@@ -57,8 +58,8 @@
             },
             onButtonClick: (event) => currPopup = null,
             componentProps: () =>  ({
-                friendName: gameInfo.players[$clientId].friend,
-                enemyName: gameInfo.players[$clientId].friend,
+                friendName: gameInfo.players[$playerId].friend,
+                enemyName: gameInfo.players[$playerId].friend,
             })
         } as Popup<Frenemies>,
         SuppliesOffer: {
@@ -87,7 +88,7 @@
 
     /** Текущий режим всплывающего окна */
     let currPopup: Popup<any> | null = popups.None;
-    if (gameInfo.active_player === $clientId) {
+    if (gameInfo.active_player === $clientToken) {
         if (gameInfo.phase === GamePhase.Morning) {
             currPopup = popups.SuppliesOffer;
         } else if (gameInfo.offered_navigations.length > 0) {
@@ -113,13 +114,13 @@
             // Сами обработчики событий
             const handlers: {[key: string]: (event: GameEvent) => void | Promise<void>} = {
                 'PlayerConnect': (event) => {
-                    addPlayer((event as PlayerConnect).client_id, new Player([]));
+                    addPlayer((event as PlayerConnect).player_id!, new Player([]));
                 },
                 'HostChange': (event) => {
                     changeHost((event as HostChange).new_host);
                 },
                 'NameChange': (event) => {
-                    changeName((event as NameChange).client_id, (event as NameChange).new_name);
+                    changeName((event as NameChange).player_id!, (event as NameChange).new_name);
                 },
                 'GameStart': async (event) => {
                     startGame((event as GameStart).assigned_characters);
@@ -127,7 +128,7 @@
                 },
                 'NewRelationships': async (event) => {
                     let e = event as NewRelationships;
-                    await setFrenemies(e.friend_client_id, e.enemy_client_id);
+                    await setFrenemies(e.friend_id, e.enemy_id);
                 },
                 'NewSupplies': async (event: GameEvent) => {
                     let e = event as NewSupplies;
@@ -141,7 +142,7 @@
                 'SupplyShowcase': (event) => {
                     let e = event as SupplyShowcase;
                     if (!e.observed) {
-                        console.log(`${$clientId} is offered some supplies`)
+                        console.log(`${$clientToken} is offered some supplies`)
                         currPopup = popups.SuppliesOffer;
                         gameInfo.supply_stash = (event as SupplyShowcase).supply_stash;
                         gameInfo = gameInfo;
@@ -151,7 +152,7 @@
                     // Всегда observed
                     let e = event as TakeSupply;
                     gameInfo.active_player = undefined;
-                    otherReceiveSupplies(e.client_id, 1);
+                    otherReceiveSupplies(e.player_id!, 1);
                 },
                 'TurnChange': (event) => {
                     gameInfo.active_player = (event as TurnChange).new_active_player;
@@ -175,7 +176,7 @@
                     gameInfo.offered_navigations = [];
                     gameInfo.navigation_stash.push(e.navigation);
                     gameInfo.navigation_stash = gameInfo.navigation_stash;
-                    gameInfo.players[e.client_id].rowed_this_turn = true;
+                    gameInfo.players[e.player_id!].rowed_this_turn = true;
                 }
             }
 
@@ -195,8 +196,11 @@
     onMount(() => {
         websocket.onopen = (event) => {
             console.log("Websocket connection made");
-            websocket.sendEvent(new PlayerConnect(data.clientId));
-            addPlayer($clientId, new Player([]));
+            websocket.sendEvent(new PlayerConnect(data.clientToken));
+            addPlayer($playerId, new Player([]));
+            let name = "Игрок " + Object.keys(gameInfo.players).length;
+            changeName(data.playerId, name);
+            websocket.sendEvent( new NameChange($clientToken, name));
         };
 
         websocket.onmessage = (event) => {
@@ -223,31 +227,31 @@
         gameInfo = gameInfo;
     }
 
-    function changeName(clientId: string, newName: string) {
-        gameInfo.players[clientId].name = newName;
+    function changeName(playerId: string, newName: string) {
+        gameInfo.players[playerId].name = newName;
         gameInfo = gameInfo;
     }
 
-    function handleNameChange(event: CustomEvent<{clientId: string, newName: string}>) {
-        changeName(event.detail.clientId, event.detail.newName);
-        websocket.sendEvent( new NameChange(event.detail.clientId, event.detail.newName))
+    function handleNameChange(event: CustomEvent<{newName: string}>) {
+        changeName(data.playerId, event.detail.newName);
+        websocket.sendEvent( new NameChange($clientToken, event.detail.newName))
     }
 
     function startGame(characters: {[key: string]: Character}) {
         gameInfo.phase = GamePhase.Morning;
-        for (const client_id in gameInfo.players) {
-            gameInfo.players[client_id].character = characters[client_id];
+        for (const player_id in gameInfo.players) {
+            gameInfo.players[player_id].character = characters[player_id];
         }
         gameInfo = gameInfo;
     }
 
     function handleStartRequest() {
-        websocket.sendEvent(new StartRequest($clientId));
+        websocket.sendEvent(new StartRequest($clientToken));
     }
 
     async function setFrenemies(friendClientId: string, enemyClientId: string) {
-        gameInfo.players[$clientId].enemy = enemyClientId;
-        gameInfo.players[$clientId].friend = friendClientId;
+        gameInfo.players[$playerId].enemy = enemyClientId;
+        gameInfo.players[$playerId].friend = friendClientId;
 
         currPopup = popups.Frenemies;
 
@@ -261,7 +265,7 @@
     }
 
     function receiveSupplies(supplies: Array<Supply>) {
-        gameInfo.players[$clientId].supplies.push(...supplies);
+        gameInfo.players[$playerId].supplies.push(...supplies);
         gameInfo = gameInfo
     }
 
@@ -272,19 +276,19 @@
 
     function handleSupplyTake(supply: Supply) {
         receiveSupplies([supply]);
-        websocket.sendEvent(new TakeSupply($clientId, supply));
+        websocket.sendEvent(new TakeSupply($clientToken, supply));
         currPopup = popups.None;
     }
 
     function handleNavigationSave(navigation: Navigation) {
         currPopup = popups.None;
-        websocket.sendEvent(new SaveNavigation($clientId, navigation));
+        websocket.sendEvent(new SaveNavigation($clientToken, navigation));
         gameInfo.navigation_stash.push(navigation);
-        gameInfo.players[$clientId].rowed_this_turn = true;
+        gameInfo.players[$playerId].rowed_this_turn = true;
         gameInfo = gameInfo;
     }
 
-    $: isHost = gameInfo?.host === $clientId;
+    $: isHost = gameInfo?.host === $playerId;
 </script>
 
 {#if gameInfo.phase !== GamePhase.Lobby}

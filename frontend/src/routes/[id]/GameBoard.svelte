@@ -4,7 +4,7 @@
     import { flip } from "svelte/animate";
     import PlayerInfo from "./PlayerInfo.svelte";
     import PlayerCorner from "./PlayerCorner.svelte";
-    import { clientId } from "./stores";
+    import { playerId } from "./stores";
     import { Relation } from "$lib/constants";
     import { fade, fly, scale } from "svelte/transition";
     import { OnMount } from "fractils";
@@ -19,12 +19,12 @@
     let players: Array<PlayerWithId> = [];
 
     /** Объект с отношением текущего клиента к другим игрокам */
-    let relations: {[clientId: string]: Relation} = {};
+    let relations: {[playerId: string]: Relation} = {};
 
     $: {
         players = [];
         relations = {};
-        const clientPlayer = gameInfo.players[$clientId];
+        const clientPlayer = gameInfo.players[$playerId];
         for (const key in gameInfo.players) {
             let player = gameInfo.players[key];
             players.push({...player, id: key});
@@ -45,7 +45,7 @@
 
     }
 
-    $: clientPlayer = players.find((player) => player.id === $clientId);
+    $: clientPlayer = players.find((player) => player.id === $playerId);
     /** Является ли клиент игроком */
     $: isPlayer = clientPlayer !== undefined;
 
@@ -78,7 +78,7 @@
     let navigationOrigin: PlayerCorner | PlayerInfo;
     $: {
         if (gameInfo.offered_navigations.length > 0) {
-            if (gameInfo.active_player === $clientId) {
+            if (gameInfo.active_player === $playerId) {
                 navigationOrigin = playerCorner;
             } else {
                 navigationOrigin = playerInfos[gameInfo.active_player!];
@@ -90,7 +90,7 @@
 <div id="outer-container">
     <div id="other-players">
         {#each players as player (player.id)}
-        {#if player.id !== $clientId}
+        {#if player.id !== $playerId}
         <PlayerInfo bind:this={playerInfos[player.id]}
         player={player}
         relation={relations[player.id]}
@@ -174,7 +174,7 @@
         <PlayerCorner bind:this={playerCorner}
         player={clientPlayer}
         supplyOrigin={stashPos}
-        actionsEnabled={gameInfo.phase == GamePhase.Day && gameInfo.active_player == $clientId}>
+        actionsEnabled={gameInfo.phase == GamePhase.Day && gameInfo.active_player == $playerId}>
         </PlayerCorner>
     {/if}
 

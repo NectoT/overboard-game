@@ -1,7 +1,7 @@
 <script lang="ts">
     import { NavigationRequest, type Player, type Supply } from "$lib/gametypes";
     import { flip } from "svelte/animate";
-    import { clientId } from "./stores";
+    import { playerId, clientToken } from "./stores";
     import { flyFrom } from "$lib/transitions";
     import SupplyCard from "./SupplyCard.svelte";
     import { page } from "$app/stores";
@@ -57,7 +57,7 @@
         <div class="spacer" style:width="40px"></div>
         <button
         id="row"
-        on:click={() => {websocket.sendEvent(new NavigationRequest($clientId))}}
+        on:click={() => {websocket.sendEvent(new NavigationRequest($clientToken))}}
         disabled={!actionsEnabled || player.rowed_this_turn}
         >
         </button>
@@ -69,7 +69,7 @@
 
     <div class="portrait" bind:this={portrait}
     style="background-image: url(characters/{player.character?.name}.png);"
-    class:enemy={player.enemy === $clientId} class:friend={player.friend === $clientId}>
+    class:enemy={player.enemy === $playerId} class:friend={player.friend === $playerId}>
     </div>
 
     <div class="right flex">

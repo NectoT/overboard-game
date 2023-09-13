@@ -21,14 +21,14 @@ class GameStart(GameEvent):
 
 class NewRelationships(TargetedEvent):
     '''Событие, получаемое игроком при назначении друга и врага'''
-    friend_client_id: str
-    '''Идентификатор клиента, который стал другом'''
-    enemy_client_id: str
-    '''Идентификатор клиента, который стал врагом'''
+    friend_id: str
+    '''Идентификатор игрока, который стал другом'''
+    enemy_id: str
+    '''Идентификатор игрока, который стал врагом'''
 
     def apply_to_game(self, game) -> dict:
-        game.players[self.targets[0]].friend = self.friend_client_id
-        game.players[self.targets[0]].enemy = self.enemy_client_id
+        game.players[self.targets[0]].friend = self.friend_id
+        game.players[self.targets[0]].enemy = self.enemy_id
 
 
 class NewSupplies(TargetedEvent, ObservableEvent):
