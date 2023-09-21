@@ -1,1 +1,5 @@
 __pycache__
+/app/mkdocs/site/
+
+# Этот файл генерируется автоматически
+/app/mkdocs/docs/events.md

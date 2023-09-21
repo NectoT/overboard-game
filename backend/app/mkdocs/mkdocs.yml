@@ -1,0 +1,28 @@
+site_name: Overboard API Docs
+
+plugins: []
+
+theme:
+  name: material
+  palette:
+    primary: custom
+
+markdown_extensions:
+  - attr_list
+  - admonition
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      toc_depth: 3
+
+extra_css:
+  - css/extra.css
+
+nav:
+  - Home: index.md
+  - REST API: rest.md
+  - Events: events.md

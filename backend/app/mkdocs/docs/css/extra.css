@@ -1,0 +1,78 @@
+:root {
+    --md-primary-fg-color: #5f9ea0;
+    --md-accent-fg-color: #ff6347;
+}
+
+#swagger .language-json {
+    background-color: rgb(51, 51, 51);
+    color: white;
+}
+
+.event-title {
+    display: flex;
+    align-items: center;
+    column-gap: 10px;
+    padding: 10px;
+}
+
+.event-title.player {
+    border-color: #49cc90;
+    background-color: rgba(73,204,144,.1);
+    border-style: solid;
+    border-radius: 2px;
+}
+
+.event-title.server {
+    border-color: #61affe;
+    background-color: rgba(97,175,254,.1);
+    border-style: solid;
+    border-radius: 2px;
+}
+
+.event-title .name {
+    flex-grow: 1;
+}
+
+.badge {
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    column-gap: 10px;
+
+    width: fit-content;
+
+    border-radius: 10px;
+
+    height: 90%;
+    padding: 5px 10px;
+}
+
+.badge.player {
+    background-color: #49cc90;
+    color: white;
+}
+
+.badge.server {
+    background-color: #61affe;
+    color: white;
+}
+
+.badge.observable {
+    background-color: rgb(150, 30, 255);
+    color: white;
+}
+
+.badge.targeted {
+    background-color: rgb(197, 49, 49);
+    color: white;
+}
+
+.badge a {
+    color: white;
+}
+
+.badge svg {
+    /* width: 25px; */
+    /* aspect-ratio: 1 / 1; */
+    margin: auto;
+}

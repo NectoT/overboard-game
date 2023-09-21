@@ -4,6 +4,7 @@ import random
 
 from fastapi import FastAPI, HTTPException, Cookie, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .models import *
@@ -11,6 +12,7 @@ from .models import tests
 from .databases import mongo_db as db
 from . import websocket_connections
 from .routers import eventhandlers, schemas
+from . import mkdocs
 from .utils import Token
 
 
@@ -21,10 +23,14 @@ async def lifespan(app: FastAPI):
     result = tests.run()
     if len(result.failures) > 0:
         raise AssertionError(result.failures[0][1])
+
+    mkdocs.build()
+    app.mount('/docs', StaticFiles(directory='app/mkdocs/site', html=True), '/docs')
+
     yield
 
 
-app = FastAPI(lifespan=lifespan, openapi_tags=[eventhandlers.tag_meta])
+app = FastAPI(lifespan=lifespan, openapi_tags=[eventhandlers.tag_meta], docs_url='/rest/docs')
 
 
 app.add_middleware(
@@ -96,14 +102,14 @@ def player_id(token: TokenParam) -> PlayerIdModel:
     return PlayerIdModel(id=token.hash())
 
 
-@app.get('/{game_id}/info')
+@app.get('/{game_id:int}/info')
 def game_info(game_document: Annotated[dict, Depends(game_document)]) -> GameInfo:
     '''Возвращает основную информацию об игре'''
 
     return GameInfo(**game_document)
 
 
-@app.get('/{game_id}')
+@app.get('/{game_id:int}')
 def game(game_document: Annotated[dict, Depends(game_document)], token: TokenParam) -> Game:
     '''
     Возвращает информацию об игре, доступную клиенту с токеном-идентификатором.
