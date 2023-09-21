@@ -1,5 +1,7 @@
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Union, get_origin, get_args
+from types import UnionType
+from inspect import signature, Signature
 import random
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -22,64 +24,113 @@ tag_meta = {
 }
 
 
-__event_handlers: dict[str, Callable[[Game, PlayerEvent], list[GameEvent] | None]] = {}
-'''Словарь с обработчиками событий, где ключ - это тип события в виде строки'''
-
-
-def playerevent(func: Callable[[Game, PlayerEvent], Any]) -> Callable[[int, PlayerEvent], Any]:
+class playerevent:
     '''
         Декоратор, маркирующий функцию как обработчик игрового события от игрока.
         Для каждого типа игрового события может быть только одна функция с этим декоратором
 
         #### Функции с данным декоратором изменяют игру в базе данных
 
-        Функции с этим декоратором добавляются как путь в FastAPI `router`.
-
-        Функции с этим декоратором используются методом `handle` для обработки события
+        Функции с этим декоратором используются методом `handle_player` для обработки события
         того же типа
+
+        Функции с этим декоратором добавляются как путь в FastAPI `router`.
     '''
-    event_type = None
-    # Определяем событие через type hint
-    for key in func.__annotations__:
-        hint = func.__annotations__[key]
-        if hasattr(hint, 'mro') and PlayerEvent in hint.mro():
-            event_type: type = hint
-            break
-    if event_type is None:
-        # Не нашли, где событие подают
-        raise AttributeError(f'Cannot define "{func.__name__}" as player event handler: ' +
-                             'Player event type could not be identified. \nMake sure that ' +
-                             'there is a type hint for event argument, and that the ' +
-                             'hinted type inherits PlayerEvent')
 
-    router_name = re.sub(r'[A-Z]', r' \g<0>', event_type.__name__)
-    @router.post(
-        '/' + event_type.__name__.lower(),
+    handlers: dict[str, 'playerevent'] = {}
+    '''Словарь с обработчиками событий, где ключ - это тип события в виде строки'''
+
+    response_events: tuple[type[GameEvent]]
+    '''Все потенциальные ответные события'''
+
+    event_type: type[GameEvent]
+    '''Тип события, которое обрабатывает функция. Определяется через аннотации параметров'''
+
+    def _set_response_events(self, sig: Signature) -> None:
+        # Смотрим на ответные события или их отсутствие
+        return_annotation = sig.return_annotation
+        if return_annotation == Signature.empty or return_annotation is None:
+            self.response_events = tuple()
+            return
+
+
+        # Разбираемся с потенциальным юнионом
+        if get_origin(return_annotation) in [Union, UnionType]:
+            args = get_args(return_annotation)
+            if len(args) > 2:
+                raise TypeError(f'Too many union options for "{self._handler.__name__}".')
+            return_annotation = args[0] if args[0] is not None else args[1]
+
+        if return_annotation is not None:
+            error_msg = (f'Wrong annotation for "{self._handler.__name__}": player event handlers ' +
+                        'can only return None or a list of game events.')
+            if get_origin(return_annotation) is not list:
+                raise TypeError(error_msg)
+            for arg in get_args(return_annotation):
+                if not hasattr(arg, 'mro') or GameEvent not in arg.mro():
+                    raise TypeError(error_msg)
+
+        self.response_events = get_args(return_annotation)
+
+    def _set_event_type(self, sig: Signature):
+        event_type = None
+
+        for key in sig.parameters:
+            hint = sig.parameters[key].annotation
+            if hasattr(hint, 'mro') and PlayerEvent in hint.mro():
+                event_type: type = hint
+                break
+        if event_type is None:
+            # Не нашли, где событие подают
+            raise TypeError(f'Cannot define "{self._handler.__name__}" as player event handler: ' +
+                                'Player event type could not be identified. \nMake sure that ' +
+                                'there is a type hint for event argument, and that the ' +
+                                'hinted type inherits PlayerEvent')
+        self.event_type = event_type
+
+    def _add_fastapi_route(self):
+        router_name = re.sub(r'[A-Z]', r' \g<0>', self.event_type.__name__)
+        if self._handler.__doc__ is not None:
+            description = self._handler.__doc__
+        else:
+            description = self.event_type.__doc__
+
+        @router.post(
+        '/' + self.event_type.__name__.lower(),
         name=router_name,
-        description=func.__doc__ if func.__doc__ is not None else event_type.__doc__,
+        description=description,
         status_code=200
-    )
-    def fastapi_route(game_id: int, event: event_type) -> dict:
-        # Такие post-запросы можно использовать, только если все игроки пользуются post-запросами
-        # и поллингом get_game (или как там называется функция), потому что ответные события в
-        # случае пост-запроса не высылаются
-        game = Game(**db['games'].find_one({'id': game_id}))
-        responses = func(game, event)
-        game.save_changes(db['games'])
-        return {}
+        )
+        def fastapi_route(game_id: int, event: self.event_type) -> dict:
+            # Такие post-запросы можно использовать, только если все игроки пользуются post-запросами
+            # и поллингом get_game (или как там называется функция), потому что ответные события в
+            # случае пост-запроса не высылаются
+            game = Game(**db['games'].find_one({'id': game_id}))
+            responses = self._handler(game, event)
+            game.save_changes(db['games'])
+            return {}
 
-    def wrapper(game_id: int, event: GameEvent):
+    def __init__(self, handler: Callable[[Game, PlayerEvent], list[GameEvent] | None]) -> None:
+        self._handler = handler
+
+        sig = signature(handler)
+
+        self._set_response_events(sig)
+
+        self._set_event_type(sig)
+
+        self._add_fastapi_route()
+
+        playerevent.handlers[self.event_type.__name__] = self
+
+    def __call__(self, game_id: int, event: GameEvent) -> list[GameEvent] | None:
         game = Game(**db['games'].find_one({'id': game_id}))
-        responses = func(game, event)
+        responses = self._handler(game, event)
         game.save_changes(db['games'])
         return responses
 
-    __event_handlers[event_type.__name__] = wrapper
 
-    return wrapper
-
-
-def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
+def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent]:
     '''
     Автоматически подбирает и вызывает обработчик для игрового события игрока.
 
@@ -90,8 +141,8 @@ def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent] | None:
     :raises TypeError: Не найден обработчик для переданного типа игрового события
     '''
     for event_type in type(event).mro():
-        if event_type.__name__ in __event_handlers:
-            return __event_handlers[event_type.__name__](game_id, event)
+        if event_type.__name__ in playerevent.handlers:
+            return playerevent.handlers[event_type.__name__](game_id, event)
         if event_type is PlayerEvent:
             break
     raise TypeError('No event handler for this event is available')
@@ -109,7 +160,7 @@ def apply_event(game: Game, event: PlayerEvent):
 
 
 @playerevent
-def on_player_connect(game: Game, event: PlayerConnect):
+def on_player_connect(game: Game, event: PlayerConnect) -> list[HostChange] | None:
     if event.player_id not in game.players:
         game.apply_event(event)
 
@@ -118,11 +169,14 @@ def on_player_connect(game: Game, event: PlayerConnect):
         host_event = HostChange(new_host=event.player_id)
         game.apply_event(host_event)
         return [host_event]
-    return []
+    return None
+
+
+StartGameResponse = list[GameStart, NewRelationships, NewSupplies, TurnChange, SupplyShowcase]
 
 
 @playerevent
-def start_game(game: Game, event: StartRequest):
+def start_game(game: Game, event: StartRequest) -> StartGameResponse:
 
     if game.host != event.player_id:
         raise HTTPException(403, detail='Received event does not belong to game host')
@@ -171,7 +225,7 @@ def start_game(game: Game, event: StartRequest):
 
 
 @playerevent
-def take_supply(game: Game, event: TakeSupply):
+def take_supply(game: Game, event: TakeSupply) -> list[PhaseChange, TurnChange, SupplyShowcase]:
     if game.active_player != event.player_id:
         raise HTTPException(403, f"Client {event.player_id} cannot take supplies from supply " +
                             "stash: It is not his turn yet")
@@ -195,7 +249,7 @@ def take_supply(game: Game, event: TakeSupply):
 
 
 @playerevent
-def get_navigation(game: Game, event: NavigationRequest):
+def get_navigation(game: Game, event: NavigationRequest) -> list[NavigationsOffer]:
     if game.active_player != event.player_id:
         raise HTTPException(403, f"Client {event.player_id} cannot get navigation cards: " +
                             "it is not his turn yet")
@@ -213,7 +267,7 @@ def get_navigation(game: Game, event: NavigationRequest):
 
 
 @playerevent
-def save_navigation(game: Game, event: SaveNavigation):
+def save_navigation(game: Game, event: SaveNavigation) -> None:
     if event.navigation in game.offered_navigations:
         game.apply_event(event)
     else:

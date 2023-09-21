@@ -10,7 +10,7 @@ from .models import *
 from .models import tests
 from .databases import mongo_db as db
 from . import websocket_connections
-from .routers import eventhandlers
+from .routers import eventhandlers, schemas
 from .utils import Token
 
 
@@ -38,6 +38,7 @@ app.add_middleware(
 
 app.include_router(websocket_connections.router)
 app.include_router(eventhandlers.router)
+app.include_router(schemas.router)
 
 
 def game_document(game_id: int) -> dict:
