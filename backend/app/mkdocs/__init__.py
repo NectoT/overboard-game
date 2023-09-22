@@ -8,7 +8,7 @@ from mkdocs.config import load_config
 from pydantic import BaseModel
 
 from ..routers.eventhandlers import playerevent
-from ..models import GameEvent, Observable, PlayerEvent, TargetedEvent, UNKNOWN
+from ..models import *
 
 
 event_handlers = playerevent.handlers
@@ -26,6 +26,14 @@ for name in event_handlers:
         "player": PlayerEvent in event.mro(),
         "response_events": response_events
     }
+
+    for event in response_events:
+        events_info[event] = {
+            "observable": Observable in event.mro(),
+            "targeted": TargetedEvent in event.mro(),
+            "player": PlayerEvent in event.mro(),
+            "response_events": []
+        }
 
 
 _dir = '/'.join(__path__) + '/'
@@ -123,6 +131,8 @@ def _create_example(model: type[BaseModel], observed=False) -> dict[str, Any]:
 
         if field_name == 'type':
             example[field_name] = model.__name__
+        elif observed and field_name == 'observed':
+            example[field_name] = True
         elif 'examples' in model_field.field_info.extra:
             example[field_name] = model_field.field_info.extra['examples'][0]
         elif model_field.default is not None:
@@ -133,12 +143,12 @@ def _create_example(model: type[BaseModel], observed=False) -> dict[str, Any]:
     return example
 
 
-def _make_event_properties(event: type[GameEvent]):
-    md_event += '### Properties: \n\n'
+# def _make_event_properties(event: type[GameEvent]):
+#     md_event += '### Properties: \n\n'
 
-    for field_name in event.__fields__:
-        model_field = event.__fields__[field_name]
-        md_event += f'{field_name}: {_get_md_type(model_field.outer_type_)} \n\n'
+#     for field_name in event.__fields__:
+#         model_field = event.__fields__[field_name]
+#         md_event += f'{field_name}: {_get_md_type(model_field.outer_type_)} \n\n'
 
 
 def _make_json_snippet(snippet_name, json_dict: dict) -> str:
@@ -160,7 +170,7 @@ def _make_event_block(event: type[GameEvent]) -> str:
     info = events_info[event]
 
     if len(info['response_events']) > 0:
-        md_event += '### Response Events: \n\n'
+        md_event += '#### Response Events: \n\n'
         response_events: list[type[GameEvent]] = info['response_events']
         for response_event in response_events:
             md_event += f'[{response_event.__name__}](#{response_event.__name__}), '
