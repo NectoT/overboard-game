@@ -72,39 +72,39 @@ class GameManager:
         Отправляет игровое событие, всем, кому оно предназначено
 
         Определяет, кому оно предназначено с помощью `event.targets`.
-        Если это `Observable` с точки зрения наблюдателя, отправляет событие всем, кто не указан в
-        `event.targets`.
+        Если это `Observable`, пересылает тем, кто указан в `event.targets` полное событие,
+        остальным - со скрытой информацией
 
         @from_player: Идентификатор игрока, от которого было изначально получено событие. `None`, если событие создано сервером
         '''
 
-        ids = ()
-        if isinstance(event, ObservableEvent) and event.observed:
-            # Это событие с точки зрения наблюдателя, значит надо посылать всем, кто не в targets
-            if event.targets == EventTargets.All:
-                pass  # Это событие предназначалось всем, все о нём уже знают
-            elif event.targets == EventTargets.Server:
-                ids = set(self.websockets.keys())
-                # from_player не должен быть None, ведь на сервер посылает событие игрок
-                ids.remove(from_player)
-            else:
-                ids = set(self.websockets.keys()).difference(set(event.targets))
+        all_players = set(self.websockets.keys())
+
+        ids: set[str] = set()
+
+        if event.targets == EventTargets.All:
+            ids = all_players.copy()
+            ids.discard(from_player)
+        elif event.targets == EventTargets.Server:
+            pass  # Событие предназначалось только для сервера, никому пересылать не надо
         else:
-            # Это обычное событие
-            if event.targets == EventTargets.All:
-                ids = set(self.websockets.keys())
-                if from_player is not None:
-                    ids.remove(from_player)
-            elif event.targets == EventTargets.Server:
-                pass  # Событие предназначалось только для сервера, никому пересылать не надо
-            else:
-                ids = event.targets
+            ids = set(event.targets)
 
         coroutines = []
+
         for player_id in ids:
             if player_id not in self.websockets:
                 continue  # Мало ли фейковых id переслали с событием
             coroutines.append(self.websockets[player_id].send_json(event.dict()))
+
+        if isinstance(event, ObservableEvent):
+            # Пересылаем событие наблюдателям
+            observers = all_players.difference(ids)
+            observers.discard(from_player)
+            for player_id in observers:
+                observed_event = event.observer_viewpoint()
+                coroutines.append(self.websockets[player_id].send_json(observed_event.dict()))
+
         await asyncio.gather(*coroutines)
 
     async def _handle_socket(self, player_id: str):
@@ -128,10 +128,6 @@ class GameManager:
                 if response_events is not None:
                     for event in response_events:
                         await self.send(event)
-
-                        # Если это видимое другим событие, посылаем им изменённый вариант события
-                        if isinstance(event, ObservableEvent):
-                            await self.send(event.observer_viewpoint())
 
             except (AttributeError, TypeError, ValidationError, HTTPException) as e:
                 await self.websockets[player_id].close(reason=str(e))
