@@ -7,7 +7,7 @@
 </script>
 
 <script lang="ts">
-    import type { Character } from "$lib/gametypes";
+    import type { Character } from "$lib/gametypes/game";
     import { afterUpdate, tick } from "svelte";
     import { scale } from "svelte/transition";
 

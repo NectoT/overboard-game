@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type { Game } from '$lib/gametypes';
+import type { Game } from '$lib/gametypes/game';
 import { BACKEND_URL } from '$lib/constants';
 
 export const load = (async ( { params, cookies } ) => {
@@ -10,7 +10,7 @@ export const load = (async ( { params, cookies } ) => {
             Cookie: 'token=' + token
         }
     });
-    let gameData: Game = await response.json();
+    let gameData: Required<Game> = await response.json();
     return {
         game: gameData,
         clientToken: token,

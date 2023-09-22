@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { Game, Player } from "$lib/gametypes";
+    import type { Game, Player } from "$lib/gametypes/game";
     import { fade } from "svelte/transition";
     import BoatLoader from "./BoatLoader.svelte";
     import LobbyPlayer from "./LobbyPlayer.svelte";

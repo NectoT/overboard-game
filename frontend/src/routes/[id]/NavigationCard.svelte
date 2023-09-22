@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { Navigation, Player } from "$lib/gametypes";
+    import type { Navigation, Player } from "$lib/gametypes/game";
     import GameCard from "./GameCard.svelte";
 
     export let hoverable = true;

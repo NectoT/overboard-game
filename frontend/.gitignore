@@ -11,3 +11,7 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 __pycache__
+
+# Автогенерируется
+src/lib/gametypes
+src/lib/game_websocket.ts

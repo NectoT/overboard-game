@@ -3,7 +3,6 @@ from enum import Enum
 from pydantic import BaseModel, validator, Field
 
 from .game import Game, Observable
-from .ts_transpilers import model_to_ts_class
 
 from ..utils import Token, PlayerId
 
@@ -26,7 +25,7 @@ class GameEvent(BaseModel):
     Тип события, совпадает с названием класса.
     При создании объекта модели устанавливается автоматически.
     '''
-    targets: list[str] | EventTargets = EventTargets.All
+    targets: list[PlayerId] | EventTargets = EventTargets.All
     '''
     Кому предназначается событие в его полном виде.
     Содержит список идентификаторов клиентов или значение `EventTargets`
@@ -43,37 +42,18 @@ class GameEvent(BaseModel):
         '''Применяет игровое событие к игре и сохраняет изменения в базе данных'''
         raise NotImplementedError()
 
-    @classmethod
-    def _ts_class_defaults(cls) -> dict[str, str]:
-        '''Вспомогательный метод для удобного наследования'''
-        targets_property = cls.schema()['properties']['targets']
-        return {'targets': f'{EventTargets.__name__}.{targets_property["default"]}'}
-
-    @classmethod
-    def as_ts_class(cls, export=True) -> str:
-        '''
-        Конвертирует модель в typescript класс с простым конструктором и дефолтными значениями
-
-        :returns: Строку с typescript классом
-        '''
-
-        readonly = {'type': cls.__name__}
-        defaults = cls._ts_class_defaults()
-
-        return model_to_ts_class(cls, default_fields=defaults, readonly_fields=readonly,
-                                 export=export)
-
 
 class TargetedEvent(GameEvent):
     '''
     Событие, предназначенное для одного игрока.
-
-    Идентичен `GameEvent`, за исключением проверки `targets`
     '''
+
+    targets: list[PlayerId]
+    '''Кому предназначается событие в его полном виде.'''
 
     @validator('targets', always=True)
     def target_is_single(cls, value) -> list[str]:
-        if value is EventTargets or len(value) != 1:
+        if len(value) != 1:
             raise ValueError(f'Event should target exactly one client in {cls.schema()["title"]}')
         return value
 
@@ -140,14 +120,3 @@ class ObservableEvent(GameEvent, Observable):
     def observer_viewpoint(self) -> Observable:
         '''Возвращает событие с точки зрения наблюдателя'''
         return super().observer_viewpoint()
-
-    @classmethod
-    def _ts_class_defaults(cls) -> dict[str, str]:
-        '''Вспомогательный метод для удобного переопределения в наследующих классах'''
-        observed_property = cls.schema()['properties']['observed']
-        fields = GameEvent._ts_class_defaults()
-        if observed_property["default"]:
-            fields['observed'] = 'true'
-        else:
-            fields['observed'] = 'false'
-        return fields

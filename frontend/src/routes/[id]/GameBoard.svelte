@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { GamePhase, type Game, type Player, type PlayerConnect } from "$lib/gametypes";
+    import type { Game, Player } from "$lib/gametypes/game";
     import CharacterCard, { crossfadeDuration } from "./CharacterCard.svelte";
     import { flip } from "svelte/animate";
     import PlayerInfo from "./PlayerInfo.svelte";
@@ -13,7 +13,7 @@
     import { flyFrom } from "$lib/transitions";
     import BoatLoader from "./BoatLoader.svelte";
 
-    export let gameInfo: Game;
+    export let gameInfo: Required<Game>;
 
     type PlayerWithId = Player & {id: string};
     let players: Array<PlayerWithId> = [];
@@ -55,7 +55,7 @@
     ).sort((a, b) => {return a.order - b.order}); // Ну выглядит так себе, но зато в одну строку
 
     /** Должны ли карточки с игроками находиться на поле */
-    let playersOnBoard = gameInfo.phase === GamePhase.Day;
+    let playersOnBoard = gameInfo.phase === 'day';
 
     let stash: Element;
     let stashPos: {x: number, y: number} | null = null;
@@ -125,7 +125,7 @@
         </div>
         {/if}
 
-        {#if gameInfo.phase === GamePhase.Morning}
+        {#if gameInfo.phase === 'morning'}
         <!-- Куча припасов -->
         <OnMount>
             <div
@@ -174,7 +174,7 @@
         <PlayerCorner bind:this={playerCorner}
         player={clientPlayer}
         supplyOrigin={stashPos}
-        actionsEnabled={gameInfo.phase == GamePhase.Day && gameInfo.active_player == $playerId}>
+        actionsEnabled={gameInfo.phase == 'day' && gameInfo.active_player == $playerId}>
         </PlayerCorner>
     {/if}
 

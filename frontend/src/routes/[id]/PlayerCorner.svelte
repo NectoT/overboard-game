@@ -1,11 +1,11 @@
 <script lang="ts">
-    import { NavigationRequest, type Player, type Supply } from "$lib/gametypes";
+    import type { Player, Supply } from "$lib/gametypes/game";
     import { flip } from "svelte/animate";
-    import { playerId, clientToken } from "./stores";
+    import { playerId } from "./stores";
     import { flyFrom } from "$lib/transitions";
     import SupplyCard from "./SupplyCard.svelte";
     import { page } from "$app/stores";
-    import type { WebSocketMixin } from "./+page"
+    import type { GameWebsocket } from "$lib/game_websocket";
     import { fly } from "svelte/transition";
 
     export let player: Player;
@@ -13,7 +13,7 @@
 
     export let actionsEnabled: boolean;
 
-    const websocket: WebSocketMixin = $page.data.websocket;
+    const websocket: GameWebsocket = $page.data.websocket;
 
 
     /** максимальный поворот карты припаса в turn */
@@ -57,7 +57,7 @@
         <div class="spacer" style:width="40px"></div>
         <button
         id="row"
-        on:click={() => {websocket.sendEvent(new NavigationRequest($clientToken))}}
+        on:click={() => {websocket.sendNavigationRequest({})}}
         disabled={!actionsEnabled || player.rowed_this_turn}
         >
         </button>

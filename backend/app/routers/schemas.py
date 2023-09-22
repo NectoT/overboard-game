@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from pydantic.schema import schema
 
 from .eventhandlers import playerevent
+from ..models import Game
 
 
 router = APIRouter(tags=["Schemas"], prefix="/schemas")
@@ -37,11 +38,16 @@ class EventSchemas(BaseModel):
 
 @router.get('/playerevents')
 def player_events_schemas() -> EventSchemas:
-    schemas = schema(player_events)
+    schemas = schema(player_events)['definitions']
     return EventSchemas(definitions=schemas, event_names=[e.__name__ for e in player_events])
 
 
 @router.get('/serverevents')
 def server_events_schemas() -> EventSchemas:
-    schemas = schema(server_events)
+    schemas = schema(server_events)['definitions']
     return EventSchemas(definitions=schemas, event_names=[e.__name__ for e in server_events])
+
+
+@router.get('/game')
+def game_schema() -> dict:
+    return Game.schema()

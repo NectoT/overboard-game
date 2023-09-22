@@ -1,26 +1,16 @@
 import { WEBSOCKET_URL } from '$lib/constants';
-import type { PlayerEvent } from '$lib/gametypes';
 import type { PageLoad } from './$types';
 
 export const ssr = false;
 
-/** Вебсокет с методом отправки игрового события `sendEvent` */
-export interface WebSocketMixin extends WebSocket {
-    /** Отправляет игровое событие на сервер */
-    sendEvent(event: PlayerEvent): void
-};
-
 export const load = (async ({params, data}) => {
+    // Так как этот класс наследуется от WebSocket, он доступен только для клиентской стороны.
+    // А если импортировать как обычно в начале файла, сервер тоже попытается импортировать
+    // файл и ляжет. Вот дурак.
+    let GameWebsocket = (await import('$lib/game_websocket')).GameWebsocket;
 
-    class WebSocketMixin extends WebSocket {
-        sendEvent(event: PlayerEvent) {
-            console.log("Sent " + event.type);
-            this.send(JSON.stringify(event));
-        }
-    }
-
-    let websocket = new WebSocketMixin(
-        WEBSOCKET_URL + '/' + params['id'] + '?token=' + data.clientToken
+    let websocket = new GameWebsocket(
+        WEBSOCKET_URL + '/' + params['id'] + '?token=' + data.clientToken, data.clientToken
     );
     return {
         ...data,

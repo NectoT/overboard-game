@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel
 from pymongo.collection import Collection
 
-from .ts_transpilers import model_to_ts_class
-
 if TYPE_CHECKING:
     from .base_events import GameEvent
 
@@ -100,13 +98,6 @@ class Observable(BaseModel):
 
         return diff
 
-    @classmethod
-    def as_ts_class(cls, export=True):
-        observed_property = cls.schema()['properties']['observed']
-        fields = {'observed': 'true' if observed_property["default"] else 'false'}
-
-        return model_to_ts_class(cls, default_fields=fields, export=export)
-
 
 class GameViewpoint(str, Enum):
     Player = 'Player'
@@ -199,13 +190,13 @@ class Player(Observable):
     rowed_this_turn: bool = False
 
 
-class GamePhase(int, Enum):
-    Lobby = auto()
+class GamePhase(str, Enum):
+    Lobby = 'lobby'
     '''Игра ещё не началась'''
-    Morning = auto()
+    Morning = 'morning'
     '''Фаза раздачи припасов'''
-    Day = auto()
-    Evening = auto()
+    Day = 'day'
+    Evening = 'evening'
 
 
 class Game(Observable):

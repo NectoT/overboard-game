@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Relation } from "$lib/constants";
-    import type { Player } from "$lib/gametypes";
+    import type { Player } from "$lib/gametypes/game";
     import { backOut } from "svelte/easing";
     import { fade, scale } from "svelte/transition";
     import ThinkBubble from "./ThinkBubble.svelte";
