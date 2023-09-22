@@ -166,6 +166,17 @@ def _make_event_block(event: type[GameEvent]) -> str:
     if event.__doc__ is not None:
         md_event += '#### ' + event.__doc__ + '\n\n'
 
+    if events_info[event]['targeted']:
+        target_text = 'Предназначен для одного клиента'
+    if event.__fields__['targets'].default == EventTargets.All:
+        target_text = 'Предназначен для всех клиентов'
+    elif event.__fields__['targets'].default == EventTargets.Server:
+        target_text = 'Предназначен только для сервера'
+    else:
+        target_text = 'Предназначен для указанных клиентов'
+
+    md_event += f'!!! target "{target_text}"\n\n'
+
 
     info = events_info[event]
 

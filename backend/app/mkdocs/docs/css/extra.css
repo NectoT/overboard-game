@@ -1,6 +1,26 @@
 :root {
     --md-primary-fg-color: #5f9ea0;
     --md-accent-fg-color: #ff6347;
+
+    --targeted-color: rgb(197, 49, 49);
+
+    --md-admonition-icon--target: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 0c6.627 0 12 5.373 12 12s-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0zm0 19.826a7.827 7.827 0 1 0 0-15.652 7.827 7.827 0 0 0 0 15.652zm0-3.985a3.84 3.84 0 1 1 0-7.68 3.84 3.84 0 0 1 0 7.68z"/></svg>');
+}
+
+/* https://squidfunk.github.io/mkdocs-material/reference/admonitions/#custom-admonitions-docsstylesheetsextracss */
+.md-typeset .admonition.target,
+.md-typeset details.target {
+  border-color: var(--targeted-color);
+}
+.md-typeset .target > .admonition-title,
+.md-typeset .target > summary {
+  background-color: rgba(197, 49, 49, 0.1);
+}
+.md-typeset .target > .admonition-title::before,
+.md-typeset .target > summary::before {
+  background-color: var(--targeted-color);
+  -webkit-mask-image: var(--md-admonition-icon--target);
+          mask-image: var(--md-admonition-icon--target);
 }
 
 #swagger .language-json {
@@ -63,7 +83,7 @@
 }
 
 .badge.targeted {
-    background-color: rgb(197, 49, 49);
+    background-color: var(--targeted-color);
     color: white;
 }
 
