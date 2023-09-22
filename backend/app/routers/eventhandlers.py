@@ -140,23 +140,15 @@ def handle_player(game_id: int, event: PlayerEvent) -> list[GameEvent]:
 
     :raises TypeError: Не найден обработчик для переданного типа игрового события
     '''
-    for event_type in type(event).mro():
-        if event_type.__name__ in playerevent.handlers:
-            return playerevent.handlers[event_type.__name__](game_id, event)
-        if event_type is PlayerEvent:
-            break
-    raise TypeError('No event handler for this event is available')
+    if event.type in playerevent.handlers:
+        return playerevent.handlers[event.type](game_id, event)
+
+    raise TypeError(f'No event handler for {event.type} is available')
 
 
 def get_game(game_id: int) -> Game:
     game_document = db['games'].find_one({'id': game_id})
     return Game(**game_document)
-
-
-@playerevent
-def apply_event(game: Game, event: PlayerEvent):
-    '''Применяет переданные событием изменения к игре'''
-    game.apply_event(event)
 
 
 @playerevent
@@ -170,6 +162,11 @@ def on_player_connect(game: Game, event: PlayerConnect) -> list[HostChange] | No
         game.apply_event(host_event)
         return [host_event]
     return None
+
+
+@playerevent
+def on_name_change(game: Game, event: NameChange):
+    game.apply_event(event)
 
 
 StartGameResponse = list[GameStart, NewRelationships, NewSupplies, TurnChange, SupplyShowcase]
