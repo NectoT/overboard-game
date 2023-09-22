@@ -6,6 +6,8 @@ theme:
   name: material
   palette:
     primary: custom
+  features:
+      - content.code.annotate
 
 markdown_extensions:
   - attr_list
@@ -26,3 +28,4 @@ nav:
   - Home: index.md
   - REST API: rest.md
   - Events: events.md
+  - Token and Player Id: identification.md
